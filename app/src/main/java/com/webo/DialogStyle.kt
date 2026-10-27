@@ -393,10 +393,15 @@ object DlgStyle {
             iv.outlineProvider = ViewOutlineProvider.BACKGROUND
             row.addView(iv, lp(size, size))
         } else {
-            val f = txt(ctx, initial(name), 13f, p.accent, true)
-            f.gravity = Gravity.CENTER
-            f.background = shape(ctx, p.bg, 15, p.line)
-            row.addView(f, lp(size, size))
+            // الموقع لا يعرض أيقونته: أيقونة التطبيق
+            val iv = ImageView(ctx)
+            iv.setImageResource(R.drawable.logo)
+            iv.scaleType = ImageView.ScaleType.FIT_CENTER
+            iv.setPadding(dp(ctx, 3), dp(ctx, 3), dp(ctx, 3), dp(ctx, 3))
+            iv.background = shape(ctx, Color.WHITE, 15, p.line)
+            iv.clipToOutline = true
+            iv.outlineProvider = ViewOutlineProvider.BACKGROUND
+            row.addView(iv, lp(size, size))
         }
         val col = LinearLayout(ctx)
         col.orientation = LinearLayout.VERTICAL

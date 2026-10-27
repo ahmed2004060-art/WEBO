@@ -86,7 +86,7 @@ import javax.crypto.spec.SecretKeySpec
 
 class MainActivity : Activity() {
 
-    private val HOME = "https://www.tango.me/soultna"
+    private val HOME = "https://www.google.com"
     private val DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     private val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
     private val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -496,6 +496,21 @@ class MainActivity : Activity() {
         t.setPadding(dp(14 * p / 100), dp(8 * p / 100), dp(14 * p / 100), dp(8 * p / 100))
     }
 
+    // سماكة زر «عداد ملتقط الروابط» و«التحميلات» = سماكة الأزرار العلوية (تتبع حجم الأزرار النصية)
+    private fun syncDlBtnHeights() {
+        try {
+            val ref = pill("الصور", false) { }
+            ref.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val h = ref.measuredHeight
+            for (v in listOf<View>(badgeBox, tabDl)) {
+                val p = v.layoutParams
+                p.height = h
+                v.layoutParams = p
+            }
+        } catch (e: Throwable) {
+        }
+    }
+
     private fun restylePills(v: View) {
         if (v is TextView && v.tag == "pill") applyPillSize(v)
         if (v is ViewGroup) for (i in 0 until v.childCount) restylePills(v.getChildAt(i))
@@ -625,17 +640,31 @@ class MainActivity : Activity() {
         }
 
         showPage(0)
-        val saved = b?.getStringArrayList("urls")
+        var saved = b?.getStringArrayList("urls")
+        var st = b?.getBooleanArray("starts")
+        var sb = b?.getBooleanArray("startbacks")
+        var ci = b?.getInt("cur", 0) ?: 0
+        if (saved == null || saved.isEmpty()) {
+            // لا توجد حالة مؤقتة (التطبيق أُغلق بالكامل): نستعيد التبويبات المحفوظة في ملف دائم
+            val raw = prefs().getString("tabs_urls", null)
+            if (!raw.isNullOrEmpty()) {
+                saved = ArrayList(raw.split("\n"))
+                val sr = (prefs().getString("tabs_starts", "") ?: "").split(",")
+                val br = (prefs().getString("tabs_backs", "") ?: "").split(",")
+                st = BooleanArray(saved.size) { it < sr.size && sr[it] == "1" }
+                sb = BooleanArray(saved.size) { it < br.size && br[it] == "1" }
+                ci = prefs().getInt("tabs_cur", 0)
+            }
+        }
         if (saved != null && saved.isNotEmpty()) {
+            restoringTabs = true
             for (u in saved) newTab(u)
             // استعادة حالة واجهة البدء لكل تبويب (مثلاً تبويب فُتحت فوقه واجهة التطبيق)
-            val st = b?.getBooleanArray("starts")
-            val sb = b?.getBooleanArray("startbacks")
             for (i in tabs.indices) {
                 if (st != null && i < st.size) tabs[i].start = st[i]
                 if (sb != null && i < sb.size) tabs[i].startBack = sb[i]
             }
-            val ci = b?.getInt("cur", 0) ?: 0
+            restoringTabs = false
             if (ci in tabs.indices) switchTo(tabs[ci])
             // العودة لنفس الصفحة التي كان المستخدم فيها (إعدادات/تحميلات/أدوات) بدل المتصفح
             val pg = b?.getInt("page", 0) ?: 0
@@ -662,6 +691,31 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         CookieManager.getInstance().flush() // يحفظ تسجيل الدخول
+        saveTabsPrefs()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        saveTabsPrefs()
+    }
+
+    private var restoringTabs = false
+
+    // حفظ التبويبات المفتوحة في ملف دائم: تبقى بعد إغلاق التطبيق ولا تُحذف إلا عندما يغلقها المستخدم بنفسه
+    private fun saveTabsPrefs() {
+        if (restoringTabs) return
+        try {
+            if (tabs.isEmpty()) {
+                prefs().edit().remove("tabs_urls").remove("tabs_starts").remove("tabs_backs").remove("tabs_cur").apply()
+                return
+            }
+            prefs().edit()
+                .putString("tabs_urls", tabs.joinToString("\n") { (it.web.url ?: "").replace("\n", "") })
+                .putString("tabs_starts", tabs.joinToString(",") { if (it.start) "1" else "0" })
+                .putString("tabs_backs", tabs.joinToString(",") { if (it.startBack) "1" else "0" })
+                .putInt("tabs_cur", tabs.indexOf(cur).coerceAtLeast(0))
+                .apply()
+        } catch (e: Throwable) {}
     }
 
     override fun onTrimMemory(level: Int) {
@@ -903,9 +957,9 @@ class MainActivity : Activity() {
         urlBox.setTextColor(cText)
         urlBox.setHintTextColor(cMuted)
         urlBox.hint = "ابحث أو اكتب رابطاً"
-        urlBox.textSize = 14f
+        urlBox.textSize = 11f
         urlBox.background = bg(cCard, 20, cLine)
-        urlBox.setPadding(dp(14), dp(8), dp(14), dp(8))
+        urlBox.setPadding(dp(8), dp(8), dp(8), dp(8))
         urlBox.layoutDirection = View.LAYOUT_DIRECTION_LTR
         urlBox.gravity = Gravity.CENTER_VERTICAL or Gravity.START
         urlBox.setSelectAllOnFocus(true)
@@ -1012,11 +1066,26 @@ class MainActivity : Activity() {
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
-        head.addView(tv("التنزيلات", 20f, cText, true), lp(0, WRAP, 1f))
+        // (٢) عنوان «التنزيلات»: يصغّر تلقائياً ليظهر كاملاً في سطر واحد
+        val dlTitle = tv("التنزيلات", 20f, cText, true)
+        dlTitle.maxLines = 1
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            dlTitle.setAutoSizeTextTypeUniformWithConfiguration(8, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+        } else {
+            dlTitle.textSize = 14f
+        }
+        head.addView(dlTitle, lp(0, WRAP, 1f))
         head.addView(pill("الصور", false) { showImagesSection() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
         head.addView(pill("المحمية", false) { showOfflineManager() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
-        head.addView(pill("المخزن", true) { openStorage() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
-        head.addView(pill("مسح القائمة", false) { clearFound() })
+        // (١) المخزن بنفس شكل الأزرار المجاورة (إطار بدون تعبئة)
+        head.addView(pill("المخزن", false) { openStorage() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+        // (٣) مسح القائمة: إزاحة لليسار بمقدار المسافة بين الأزرار (6dp)
+        val clearBtn = pill("مسح القائمة", false) { clearFound() }
+        clearBtn.translationX = -dp(6).toFloat()
+        head.addView(clearBtn)
+        head.clipChildren = false
+        col.clipChildren = false
+        col.clipToPadding = false
         col.addView(head, lp(MATCH, WRAP, 0f, 0, 0, 0, 6))
         col.addView(tv("شغّل الفيديو داخل المتصفح وستظهر روابطه هنا ثم اضغط تحميل. الملفات تُحفظ في مجلد التحميلات.", 12f, cMuted), lp(MATCH, WRAP, 0f, 0, 0, 0, 10))
 
@@ -1027,7 +1096,7 @@ class MainActivity : Activity() {
         badgeBox = LinearLayout(this)
         badgeBox.orientation = LinearLayout.HORIZONTAL
         badgeBox.gravity = Gravity.CENTER
-        badgeBox.setPadding(dp(12), dp(6), dp(8), dp(6))
+        badgeBox.setPadding(dp(12), 0, dp(8), 0)
         badge = tv("عداد ملتقط الروابط", 12f, Color.WHITE, true)
         badgeNum = tv("0", 12f, Color.WHITE, true)
         badgeNum.gravity = Gravity.CENTER
@@ -1042,14 +1111,19 @@ class MainActivity : Activity() {
             badgeSeen = true
             setDlView(1)
         }
-        dlActions.addView(badgeBox, lp(0, MATCH, 1f, 0, 0, 6, 0))
+        // (٤) مسافة قصيرة (6dp) بين عداد ملتقط الروابط وزر التحميلات
+        val badgeLp = lp(0, WRAP, 1f)
+        badgeLp.marginEnd = dp(6)
+        dlActions.addView(badgeBox, badgeLp)
         tabDl = tv("التحميلات", 12f, Color.WHITE, true)
         tabDl.gravity = Gravity.CENTER
-        tabDl.setPadding(dp(14), dp(6), dp(14), dp(6))
+        tabDl.setPadding(dp(14), 0, dp(14), 0)
         tabDl.background = bg(cAccent, 20, Color.WHITE)
         tabDl.setOnClickListener { setDlView(0) }
-        dlActions.addView(tabDl, lp(0, MATCH, 1f))
+        dlActions.addView(tabDl, lp(0, WRAP, 1f))
         col.addView(dlActions, lp(MATCH, WRAP, 0f, 0, 0, 0, 10))
+        // (٥) سماكة الزرين = سماكة الأزرار العلوية
+        syncDlBtnHeights()
 
         // شاشة العداد: عدد الملتقطة + زر تحميل الفيديو
         cntTitle = tv("", 15f, cText, true)
@@ -1222,8 +1296,6 @@ class MainActivity : Activity() {
         section(col, "التصفح")
         grid(col, listOf(
             toolCard(R.drawable.ic_search, "بحث بالصفحة") { openFind() },
-            toolCard(R.drawable.ic_up, "أعلى الصفحة") { cur?.web?.pageUp(true); showPage(0) },
-            toolCard(R.drawable.ic_down, "أسفل الصفحة") { cur?.web?.pageDown(true); showPage(0) },
             toolCard(R.drawable.ic_paste, "فتح من الحافظة") { openFromClip() },
             toolCard(R.drawable.ic_web, "تشغيل ملف html") { openHtmlFile() }
         ))
@@ -1232,7 +1304,7 @@ class MainActivity : Activity() {
         grid(col, listOf(
             toolCard(R.drawable.ic_link, "نسخ الرابط") {
                 val u = cur?.web?.url
-                if (u != null) copyText(u)
+                if (u != null) copyText(u) else toast("افتح صفحة أولاً")
             },
             toolCard(R.drawable.ic_share, "مشاركة") {
                 val u = cur?.web?.url
@@ -1241,9 +1313,9 @@ class MainActivity : Activity() {
                     i.type = "text/plain"
                     i.putExtra(Intent.EXTRA_TEXT, u)
                     startActivity(Intent.createChooser(i, "مشاركة"))
-                }
+                } else toast("افتح صفحة أولاً")
             },
-            toolCard(R.drawable.ic_star, "إضافة للمفضلة") { addBookmark() },
+            toolCard(R.drawable.ic_bookmark, "إضافة للمفضلة") { addBookmark() },
             toolCard(R.drawable.ic_pin, "إضافة اختصار") {
                 val c = cur
                 val u = c?.web?.url
@@ -1252,10 +1324,10 @@ class MainActivity : Activity() {
             toolCard(R.drawable.ic_code, "سكربتات الصفحة") { showScripts() }
         ))
 
-        section(col, "التبويبات والسجل")
+        section(col, "السجل")
         grid(col, listOf(
             toolCard(R.drawable.ic_undo, "المغلقة مؤخراً") { showClosed() },
-            toolCard(R.drawable.ic_list, "روابط التبويبات") { copyTabs() }
+            toolCard(R.drawable.ic_list, "السجل") { copyTabs() }
         ))
 
         section(col, "التحميلات والملفات")
@@ -1277,8 +1349,8 @@ class MainActivity : Activity() {
         section(col, "التقاط الفيديو")
         grid(col, listOf(
             toolCard(R.drawable.ic_search_link, "فحص رابط") { inspectLink() },
-            toolCard(R.drawable.ic_list, "سجل الالتقاط") { showCapLog() },
-            toolCard(R.drawable.ic_search_link, "الروابط المستبعدة") { excludedDialog() }
+            toolCard(R.drawable.ic_history, "سجل الالتقاط") { showCapLog() },
+            toolCard(R.drawable.ic_block, "الروابط المستبعدة") { excludedDialog() }
         ))
 
         val sv = ScrollView(this)
@@ -1717,7 +1789,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // شعار الموقع: من الذاكرة أولاً ثم من الملف المحفوظ، فيبقى ظاهراً بعد إعادة تشغيل التطبيق
+    // شعار الموقع: الذاكرة، ثم الملف المحفوظ، فيبقى ظاهراً بعد إعادة تشغيل التطبيق
     private fun favOf(u: String): android.graphics.Bitmap? {
         val h = try { Uri.parse(u).host } catch (e: Throwable) { null }
         val hit = (if (h != null) favCache[h] else null) ?: favCache[hostOf(u)]
@@ -1850,16 +1922,39 @@ class MainActivity : Activity() {
         return sv
     }
 
-    private fun siteTile(label: String, onClick: () -> Unit, onLong: (() -> Unit)?, glyph: String = ""): View {
+    private fun siteTile(label: String, onClick: () -> Unit, onLong: (() -> Unit)?, glyph: String = "", url: String = ""): View {
         val c = LinearLayout(this)
         c.orientation = LinearLayout.VERTICAL
         c.gravity = Gravity.CENTER_HORIZONTAL
         c.setPadding(dp(2), dp(6), dp(2), dp(6))
-        val g = if (glyph.isNotEmpty()) glyph else (label.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "؟")
-        val ch = tv(g, 20f, cAccent, true)
-        ch.gravity = Gravity.CENTER
-        ch.background = bg(cAccentSoft, 26)
-        c.addView(ch, lp(dp(52), dp(52)))
+        val favIc = if (glyph.isEmpty() && url.isNotEmpty()) favOf(url) else null
+        if (favIc != null) {
+            // أيقونة الموقع الحقيقية
+            val iv = ImageView(this)
+            iv.setImageBitmap(favIc)
+            iv.scaleType = ImageView.ScaleType.FIT_CENTER
+            iv.setPadding(dp(11), dp(11), dp(11), dp(11))
+            iv.background = bg(Color.WHITE, 26)
+            iv.clipToOutline = true
+            iv.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            c.addView(iv, lp(dp(52), dp(52)))
+        } else if (glyph.isNotEmpty()) {
+            val ch = tv(glyph, 20f, cAccent, true)
+            ch.gravity = Gravity.CENTER
+            ch.background = bg(cAccentSoft, 26)
+            c.addView(ch, lp(dp(52), dp(52)))
+        } else {
+            // الموقع لا يعرض أيقونته: أيقونة التطبيق، ونحاول جلب أيقونة الموقع نفسه
+            val iv = ImageView(this)
+            iv.setImageResource(R.drawable.logo)
+            iv.scaleType = ImageView.ScaleType.FIT_CENTER
+            iv.setPadding(dp(8), dp(8), dp(8), dp(8))
+            iv.background = bg(Color.WHITE, 26)
+            iv.clipToOutline = true
+            iv.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            c.addView(iv, lp(dp(52), dp(52)))
+            if (url.isNotEmpty()) fetchFavFor(url)
+        }
         val t = tv(label, 12f, cText)
         t.gravity = Gravity.CENTER
         t.maxLines = 1
@@ -1871,6 +1966,32 @@ class MainActivity : Activity() {
             true
         }
         return c
+    }
+
+    private val favTried = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    // يجلب أيقونة الموقع من الموقع نفسه (favicon.ico) مرة واحدة لكل موقع، ثم يحدّث الصفحة الرئيسية
+    private fun fetchFavFor(u: String) {
+        val h = try { Uri.parse(u).host } catch (e: Throwable) { null }
+        if (h == null || favTried.putIfAbsent(h, true) != null) return
+        Thread {
+            try {
+                val c = java.net.URL("https://" + h + "/favicon.ico").openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 6000
+                c.readTimeout = 6000
+                c.instanceFollowRedirects = true
+                val bmp = c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+                c.disconnect()
+                if (bmp != null && bmp.width >= 16) {
+                    favCache[h] = bmp
+                    saveFav(h, bmp)
+                    runOnUiThread {
+                        try { if (cur?.start == true) refreshStart() } catch (e: Throwable) { }
+                    }
+                }
+            } catch (e: Throwable) {
+            }
+        }.start()
     }
 
     private fun tileGrid(parent: LinearLayout, tiles: List<View>) {
@@ -1910,7 +2031,7 @@ class MainActivity : Activity() {
                     saveShortcuts(l)
                     refreshStart()
                 }
-            }))
+            }, "", p.second))
         }
         tiles.add(siteTile("إضافة", { addShortcutDialog() }, null, "+"))
         tileGrid(startSites, tiles)
@@ -1920,7 +2041,7 @@ class MainActivity : Activity() {
             startBm.addView(tv("لا توجد صفحات محفوظة بعد. افتح صفحة ثم احفظها من «الأدوات».", 12f, cMuted))
         } else {
             val bt = ArrayList<View>()
-            for (u in bm) bt.add(siteTile(hostOf(u), { load(u) }, { confirmDelete(hostOf(u)) { removeBookmark(u) } }))
+            for (u in bm) bt.add(siteTile(hostOf(u), { load(u) }, { confirmDelete(hostOf(u)) { removeBookmark(u) } }, "", u))
             tileGrid(startBm, bt)
         }
     }
@@ -1929,10 +2050,11 @@ class MainActivity : Activity() {
         val out = ArrayList<Pair<String, String>>()
         val raw = prefs().getString("sc", null)
         if (raw == null) {
-            out.add(Pair("تانجو", HOME))
             out.add(Pair("جوجل", "https://www.google.com"))
             out.add(Pair("يوتيوب", "https://m.youtube.com"))
             out.add(Pair("ويكيبيديا", "https://ar.wikipedia.org"))
+            out.add(Pair("تانجو", "https://www.tango.me"))
+            out.add(Pair("X", "https://x.com"))
             return out
         }
         try {
@@ -2507,6 +2629,7 @@ class MainActivity : Activity() {
         switchTo(t)
         showPage(0)
         if (url.isNotBlank()) t.web.loadUrl(fix(url))
+        saveTabsPrefs()
     }
 
     private fun removeTab(t: Tab) {
@@ -2528,6 +2651,7 @@ class MainActivity : Activity() {
         removeTab(t)
         relabel()
         if (wasCur) switchTo(tabs[if (i > 0) i - 1 else 0])
+        saveTabsPrefs()
     }
 
     private fun moveTab(from: Int, to: Int) {
@@ -2867,12 +2991,13 @@ class MainActivity : Activity() {
             iv.setPadding(dp(3), dp(3), dp(3), dp(3))
             fl.addView(iv, FrameLayout.LayoutParams(MATCH, MATCH))
         } else {
-            val pal = arrayOf("#6A1B9A", "#C62828", "#455A64", "#EF6C00", "#2E7D32", "#1565C0", "#AD1457")
-            fl.background = swOval(Color.parseColor(pal[(host.hashCode() and 0x7fffffff) % pal.size]))
-            val x = tv(host.removePrefix("www.").take(1).uppercase(), 11f, Color.WHITE)
-            x.gravity = Gravity.CENTER
-            x.includeFontPadding = false
-            fl.addView(x, FrameLayout.LayoutParams(MATCH, MATCH))
+            // الموقع لا يعرض أيقونته: نضع أيقونة التطبيق
+            fl.background = swOval(Color.WHITE)
+            val iv = ImageView(this)
+            iv.setImageResource(R.drawable.logo)
+            iv.scaleType = ImageView.ScaleType.FIT_CENTER
+            iv.setPadding(dp(3), dp(3), dp(3), dp(3))
+            fl.addView(iv, FrameLayout.LayoutParams(MATCH, MATCH))
         }
         return fl
     }
@@ -3195,6 +3320,7 @@ class MainActivity : Activity() {
         relabel()
         swDraw()
         swSnackShow("أُغلقت كل التبويبات الأخرى", null, null)
+        saveTabsPrefs()
     }
 
     private fun swCloseAll() {
@@ -3203,6 +3329,7 @@ class MainActivity : Activity() {
         relabel()
         swDraw()
         swSnackShow("أُغلقت كل التبويبات", null, null)
+        saveTabsPrefs()
     }
 
     private fun swStartSel() {
@@ -3552,6 +3679,7 @@ class MainActivity : Activity() {
         relabel()
         switchTo(keep)
         toast("تم إغلاق باقي التبويبات")
+        saveTabsPrefs()
     }
 
     private fun relabel() {
@@ -3603,8 +3731,10 @@ class MainActivity : Activity() {
 
     // ---------- المفضلة ----------
 
-    private fun bookmarkList(): List<String> =
-        (prefs().getStringSet("bm", HashSet<String>()) ?: HashSet<String>()).toList().sorted()
+    private fun bookmarkList(): List<String> {
+        val raw = prefs().getStringSet("bm", HashSet<String>()) ?: HashSet<String>()
+        return raw.toList().sorted()
+    }
 
     private fun addBookmark() {
         val u = cur?.web?.url
@@ -8448,6 +8578,7 @@ deep();
             navOverlay.addView(buildNav(), navPopupLp())
             showPage(page)
             restylePills(root)
+            syncDlBtnHeights()
         } catch (e: Throwable) {
             logErr("واجهة", "تعذر تطبيق الأحجام: " + (e.message ?: ""), e)
         }
