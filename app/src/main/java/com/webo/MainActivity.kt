@@ -1490,7 +1490,7 @@ class MainActivity : Activity() {
         val ic = ImageView(this)
         ic.setImageResource(icon)
         ic.setColorFilter(cAccent)
-        row.addView(ic, lp(dp(26), dp(26), 0f, 0, 0, 12, 0))
+        row.addView(ic, lp(dp(26), dp(26), 0f, 12, 0, 0, 0))
         val txt = LinearLayout(this)
         txt.orientation = LinearLayout.VERTICAL
         txt.addView(tv(title, 15f, cText, true))
@@ -1778,7 +1778,12 @@ class MainActivity : Activity() {
     private fun saveFav(h: String, b: android.graphics.Bitmap) {
         try {
             val f = favFile(h)
-            if (f.exists()) return
+            if (f.exists()) {
+                val o = android.graphics.BitmapFactory.Options()
+                o.inJustDecodeBounds = true
+                android.graphics.BitmapFactory.decodeFile(f.absolutePath, o)
+                if (o.outWidth >= b.width) return
+            }
             previewPool.execute {
                 try {
                     java.io.FileOutputStream(f).use { b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
@@ -1933,7 +1938,9 @@ class MainActivity : Activity() {
             val iv = ImageView(this)
             iv.setImageBitmap(favIc)
             iv.scaleType = ImageView.ScaleType.FIT_CENTER
-            iv.setPadding(dp(11), dp(11), dp(11), dp(11))
+            val pad = if (favIc.width >= 64) dp(8) else dp(11)
+            iv.setPadding(pad, pad, pad, pad)
+            if (favIc.width < 64) fetchFavFor(url)
             iv.background = bg(Color.WHITE, 26)
             iv.clipToOutline = true
             iv.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
@@ -1970,19 +1977,76 @@ class MainActivity : Activity() {
 
     private val favTried = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
-    // يجلب أيقونة الموقع من الموقع نفسه (favicon.ico) مرة واحدة لكل موقع، ثم يحدّث الصفحة الرئيسية
+    private val favUa = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+
+    private fun dlBmp(u: String): android.graphics.Bitmap? {
+        return try {
+            val c = java.net.URL(u).openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 6000
+            c.readTimeout = 6000
+            c.instanceFollowRedirects = true
+            c.setRequestProperty("User-Agent", favUa)
+            val b = c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+            c.disconnect()
+            b
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    // يقرأ وسوم <link rel=...icon> من الصفحة الرئيسية ويرتب الأيقونات من الأكبر إلى الأصغر
+    private fun iconLinks(h: String): List<String> {
+        val out = ArrayList<Pair<Int, String>>()
+        try {
+            val c = java.net.URL("https://" + h + "/").openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 6000
+            c.readTimeout = 6000
+            c.instanceFollowRedirects = true
+            c.setRequestProperty("User-Agent", favUa)
+            val base = c.url
+            val html = c.inputStream.bufferedReader().use { r ->
+                val buf = CharArray(80000)
+                val n = r.read(buf)
+                if (n > 0) String(buf, 0, n) else ""
+            }
+            c.disconnect()
+            val opt = RegexOption.IGNORE_CASE
+            for (m in Regex("<link[^>]+>", opt).findAll(html)) {
+                val tag = m.value
+                val rel = Regex("rel\\s*=\\s*[\"']([^\"']+)[\"']", opt).find(tag)?.groupValues?.get(1)?.lowercase() ?: continue
+                if (!rel.contains("icon")) continue
+                val href = Regex("href\\s*=\\s*[\"']([^\"']+)[\"']", opt).find(tag)?.groupValues?.get(1) ?: continue
+                if (href.endsWith(".svg", true) || href.startsWith("data:")) continue
+                val sz = Regex("sizes\\s*=\\s*[\"'](\\d+)x\\d+", opt).find(tag)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: (if (rel.contains("apple")) 180 else 0)
+                val full = try { java.net.URL(base, href).toString() } catch (e: Throwable) { continue }
+                out.add(Pair(sz, full))
+            }
+        } catch (e: Throwable) {
+        }
+        return out.sortedByDescending { it.first }.map { it.second }
+    }
+
+    // يجلب أكبر أيقونة حقيقية متاحة للموقع، ثم favicon.ico كاحتياط، مرة واحدة لكل موقع
     private fun fetchFavFor(u: String) {
         val h = try { Uri.parse(u).host } catch (e: Throwable) { null }
         if (h == null || favTried.putIfAbsent(h, true) != null) return
         Thread {
             try {
-                val c = java.net.URL("https://" + h + "/favicon.ico").openConnection() as java.net.HttpURLConnection
-                c.connectTimeout = 6000
-                c.readTimeout = 6000
-                c.instanceFollowRedirects = true
-                val bmp = c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
-                c.disconnect()
-                if (bmp != null && bmp.width >= 16) {
+                val cands = ArrayList<String>()
+                cands.addAll(iconLinks(h).take(3))
+                cands.add("https://" + h + "/apple-touch-icon.png")
+                cands.add("https://" + h + "/favicon.ico")
+                var best: android.graphics.Bitmap? = null
+                for (cu in cands) {
+                    val b = dlBmp(cu) ?: continue
+                    if (b.width < 16) continue
+                    if (best == null || b.width > best.width) best = b
+                    if (b.width >= 120) break
+                }
+                val bmp = best
+                val old = favCache[h]
+                if (bmp != null && (old == null || bmp.width > old.width)) {
                     favCache[h] = bmp
                     saveFav(h, bmp)
                     runOnUiThread {
