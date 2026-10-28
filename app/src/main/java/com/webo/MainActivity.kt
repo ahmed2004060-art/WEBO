@@ -170,7 +170,6 @@ class MainActivity : Activity() {
     private lateinit var badgeBox: LinearLayout
     private lateinit var badgeNum: TextView
     private lateinit var tabDl: TextView
-    private lateinit var cntTitle: TextView
 
     // بدء تحميل كل رابط ملتقط وهيدرزه (لأزرار الفيديو داخل الصفحة)
     private val foundStart = HashMap<String, () -> Unit>()
@@ -489,6 +488,19 @@ class MainActivity : Activity() {
         return t
     }
 
+    // أزرار تبويب التنزيلات: مطابقة لأزرار معاينة html (ارتفاع 46، نصف قطر 22، حشو أفقي 14، خط 13، سطر واحد)
+    private fun dlPill(text: String, filled: Boolean, onClick: () -> Unit): TextView {
+        val t = pill(text, filled, onClick)
+        t.tag = "dlpill"
+        t.textSize = 13f
+        t.setPadding(dp(14), 0, dp(14), 0)
+        t.setSingleLine(true)
+        t.gravity = Gravity.CENTER
+        t.height = dp(46)
+        t.background = if (filled) bg(cAccent, 22) else bg(Color.TRANSPARENT, 22, cAccent)
+        return t
+    }
+
     // حجم الأزرار النصية (تحميل، نسخ الرابط، إلغاء...) يتبع شريط «الأزرار النصية» في الأحجام
     private fun applyPillSize(t: TextView) {
         val p = pctB("txt_pill")
@@ -499,9 +511,7 @@ class MainActivity : Activity() {
     // سماكة زر «عداد ملتقط الروابط» و«التحميلات» = سماكة الأزرار العلوية (تتبع حجم الأزرار النصية)
     private fun syncDlBtnHeights() {
         try {
-            val ref = pill("الصور", false) { }
-            ref.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-            val h = ref.measuredHeight
+            val h = dp(46)
             for (v in listOf<View>(badgeBox, tabDl)) {
                 val p = v.layoutParams
                 p.height = h
@@ -1012,10 +1022,15 @@ class MainActivity : Activity() {
         barBatch.contentDescription = "التقاط كل فيديوهات الصفحة"
         bar.addView(barBatch, lp(dp(38), dp(38)))
         barHome = iconBtn(R.drawable.ic_home_solid) {
-            cur?.start = true
-            cur?.startBack = cur?.web?.url != null
-            updateStart()
-            showPage(0)
+            // ينتقل إلى تبويب الرئيسية الموجود (أو ينشئه) ويبقى فيه دون المساس بتبويب الموقع
+            val home = tabs.firstOrNull { it.start }
+            if (home != null) {
+                home.startBack = false
+                if (home !== cur) switchTo(home) else updateStart()
+                showPage(0)
+            } else {
+                newTab("")
+            }
         }
         barHome.contentDescription = "الرئيسية"
         bar.addView(barHome, lp(dp(38), dp(38)))
@@ -1066,23 +1081,14 @@ class MainActivity : Activity() {
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
-        // (٢) عنوان «التنزيلات»: يصغّر تلقائياً ليظهر كاملاً في سطر واحد
-        val dlTitle = tv("التنزيلات", 20f, cText, true)
-        dlTitle.maxLines = 1
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
-            dlTitle.setAutoSizeTextTypeUniformWithConfiguration(8, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
-        } else {
-            dlTitle.textSize = 14f
-        }
-        head.addView(dlTitle, lp(0, WRAP, 1f))
-        head.addView(pill("الصور", false) { showImagesSection() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
-        head.addView(pill("المحمية", false) { showOfflineManager() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+        head.addView(View(this), lp(0, WRAP, 1f))
+        head.addView(dlPill("الصور", false) { showImagesSection() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+        head.addView(dlPill("المحمية", false) { showOfflineManager() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
         // (١) المخزن بنفس شكل الأزرار المجاورة (إطار بدون تعبئة)
-        head.addView(pill("المخزن", false) { openStorage() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+        head.addView(dlPill("المخزن", false) { openStorage() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
         // (٣) مسح القائمة: إزاحة لليسار بمقدار المسافة بين الأزرار (6dp)
-        val clearBtn = pill("مسح القائمة", false) { clearFound() }
-        clearBtn.translationX = -dp(6).toFloat()
-        head.addView(clearBtn)
+        val clearBtn = dlPill("مسح القائمة", false) { clearFound() }
+        head.addView(clearBtn, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
         head.clipChildren = false
         col.clipChildren = false
         col.clipToPadding = false
@@ -1099,13 +1105,14 @@ class MainActivity : Activity() {
         badgeBox.setPadding(dp(12), 0, dp(8), 0)
         badge = tv("عداد ملتقط الروابط", 12f, Color.WHITE, true)
         badgeNum = tv("0", 12f, Color.WHITE, true)
+        badgeNum.visibility = View.GONE
         badgeNum.gravity = Gravity.CENTER
         badgeNum.minWidth = dp(22)
         badgeNum.setPadding(dp(6), dp(1), dp(6), dp(1))
         badgeNum.background = bg(Color.parseColor("#E53935"), 11)
         badgeBox.addView(badge, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
         badgeBox.addView(badgeNum, lp(WRAP, WRAP))
-        badgeBox.background = bg(cAccent, 20)
+        badgeBox.background = bg(cAccent, 22)
         badgeBox.visibility = View.VISIBLE
         badgeBox.setOnClickListener {
             badgeSeen = true
@@ -1118,7 +1125,7 @@ class MainActivity : Activity() {
         tabDl = tv("التحميلات", 12f, Color.WHITE, true)
         tabDl.gravity = Gravity.CENTER
         tabDl.setPadding(dp(14), 0, dp(14), 0)
-        tabDl.background = bg(cAccent, 20, Color.WHITE)
+        tabDl.background = bg(cAccent, 22, Color.WHITE)
         tabDl.setOnClickListener { setDlView(0) }
         dlActions.addView(tabDl, lp(0, WRAP, 1f))
         col.addView(dlActions, lp(MATCH, WRAP, 0f, 0, 0, 0, 10))
@@ -1126,10 +1133,6 @@ class MainActivity : Activity() {
         syncDlBtnHeights()
 
         // شاشة العداد: عدد الملتقطة + زر تحميل الفيديو
-        cntTitle = tv("", 15f, cText, true)
-        cntTitle.visibility = View.GONE
-        col.addView(cntTitle, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
-
         activeTitle = tv("جارٍ التحميل الآن", 16f, cAccent, true)
         col.addView(activeTitle, lp(MATCH, WRAP, 0f, 0, 0, 0, 6))
         activeBox = LinearLayout(this)
@@ -3786,6 +3789,11 @@ class MainActivity : Activity() {
 
     private fun load(u: String) {
         hideKb()
+        // من الشاشة الرئيسية: يُفتح الموقع في تبويب جديد منفصل وتبقى الرئيسية تبويباً مستقلاً
+        if (cur?.start == true && u.isNotBlank()) {
+            newTab(u)
+            return
+        }
         cur?.start = false
         cur?.startBack = false
         updateStart()
@@ -4502,7 +4510,8 @@ class MainActivity : Activity() {
             val cap = capList()
             val hidden = cap.size - vis.size
             title.text = if (shown == 1) "تحميلات الصور: " + all.count { it.started }
-                else "الصور: " + vis.size + (if (hidden > 0) " (مخفي " + hidden + " صغيرة)" else "") + " • المحدد: " + cap.count { it.sel }
+                else ""
+            title.visibility = if (title.text.isEmpty()) View.GONE else View.VISIBLE
             cntB.text = if (vis.isNotEmpty()) "عداد التقاط الصور (" + vis.size + ")" else "عداد التقاط الصور"
             val smallN = cap.count { isSmall(it) }
             smallB.text = (if (showSmall) "إخفاء الصور الصغيرة" else "إظهار الصور الصغيرة") + " (" + smallN + ")"
@@ -5487,13 +5496,14 @@ deep();
 
     private fun updateCounts() {
         val n = found.size
+        val cap = allRows().count { it.state == 0 && !it.started }
         // الوميض الأحمر عند التقاط فيديو جديد فقط، ويتوقف بفتح العداد
-        if (n > lastFound) badgeSeen = (dlView == 1)
-        lastFound = n
+        if (cap > lastFound) badgeSeen = (dlView == 1)
+        lastFound = cap
         badgeBox.visibility = View.VISIBLE
-        badgeNum.text = n.toString()
-        badgeNum.visibility = if (n > 0) View.VISIBLE else View.GONE
-        if (badgeSeen) { badgeNum.clearAnimation(); badgeNum.alpha = 1f }
+        badgeNum.text = cap.toString()
+        badgeNum.visibility = if (cap > 0) View.VISIBLE else View.GONE
+        if (badgeSeen || cap == 0) { badgeNum.clearAnimation(); badgeNum.alpha = 1f }
         else if (badgeNum.animation == null) {
             val an = android.view.animation.AlphaAnimation(1f, 0.25f)
             an.duration = 600
@@ -5501,16 +5511,13 @@ deep();
             an.repeatCount = android.view.animation.Animation.INFINITE
             badgeNum.startAnimation(an)
         }
-        badgeBox.background = if (dlView == 1) bg(cAccent, 20, Color.WHITE) else bg(cAccent, 20)
-        tabDl.background = if (dlView == 0) bg(cAccent, 20, Color.WHITE) else bg(cAccent, 20)
+        badgeBox.background = if (dlView == 1) bg(cAccent, 22, Color.WHITE) else bg(cAccent, 22)
+        tabDl.background = if (dlView == 0) bg(cAccent, 22, Color.WHITE) else bg(cAccent, 22)
         dlActions.visibility = View.VISIBLE
         val act = activeBox.childCount
         navItems[1].second.text = if (act > 0) "جارٍ ($act)" else if (n > 0) "التنزيلات ($n)" else "التنزيلات"
 
         val rows = allRows()
-        val capN = rows.count { it.state == 0 }
-        cntTitle.text = "الفيديوهات الملتقطة ($capN)"
-        cntTitle.visibility = if (dlView == 1) View.VISIBLE else View.GONE
         var visAct = 0
         var visList = 0
         for (r in rows) {
@@ -6668,10 +6675,10 @@ deep();
         bar.setOnTouchListener { _, _ -> true }
         bar.visibility = View.GONE
 
-        val btn = pill("تحميل", true) { }
+        val btn = dlPill("تحميل", true) { }
         val ctl = Ctl()
-        val pauseB = pill("إيقاف مؤقت", false) { }
-        val cancelB = pill("إلغاء", false) { }
+        val pauseB = dlPill("إيقاف مؤقت", false) { }
+        val cancelB = dlPill("إلغاء", false) { }
         pauseB.visibility = View.GONE
         cancelB.visibility = View.GONE
         pauseB.setOnClickListener {
@@ -6705,13 +6712,13 @@ deep();
         cands[u] = cand
         refreshInfo(cand)
         rw.work = null
-        val copy = pill("نسخ الرابط", false) { copyText(u) }
-        val watchB = pill("▶ مشاهدة", false) { watchRow(rw) }
+        val copy = dlPill("نسخ الرابط", false) { copyText(u) }
+        val watchB = dlPill("▶ مشاهدة", false) { watchRow(rw) }
         watchB.visibility = View.GONE
         rw.watch = watchB
-        val delB = pill("إلغاء", false) { cands[u]?.let { deleteDialog(it) } }
+        val delB = dlPill("إلغاء", false) { cands[u]?.let { deleteDialog(it) } }
         rw.del = delB
-        val classB = pill("تصنيف", false) { cands[u]?.let { classifyDialog(it) } }
+        val classB = dlPill("تصنيف", false) { cands[u]?.let { classifyDialog(it) } }
 
         // السطر الأول: اسم الفيديو وحالته
         val trow = LinearLayout(this)
@@ -6727,15 +6734,15 @@ deep();
         // أزرار التحميل (أساسية) ثم أزرار الأدوات (ثانوية)
         val btns = LinearLayout(this)
         btns.orientation = LinearLayout.HORIZONTAL
-        btns.addView(btn, lp(0, MATCH, 1f, 0, 0, 6, 0))
-        btns.addView(pauseB, lp(0, MATCH, 1f, 0, 0, 6, 0))
-        btns.addView(cancelB, lp(0, MATCH, 1f))
+        btns.addView(btn, lp(0, MATCH, 1f, 3, 0, 3, 0))
+        btns.addView(pauseB, lp(0, MATCH, 1f, 3, 0, 3, 0))
+        btns.addView(cancelB, lp(0, MATCH, 1f, 3, 0, 3, 0))
         val btns2 = LinearLayout(this)
         btns2.orientation = LinearLayout.HORIZONTAL
-        btns2.addView(watchB, lp(0, MATCH, 1f, 0, 0, 6, 0))
-        btns2.addView(copy, lp(0, MATCH, 1f, 0, 0, 6, 0))
-        btns2.addView(classB, lp(0, MATCH, 1f, 0, 0, 6, 0))
-        btns2.addView(delB, lp(0, MATCH, 1f))
+        btns2.addView(watchB, lp(0, MATCH, 1f, 3, 0, 3, 0))
+        btns2.addView(copy, lp(0, MATCH, 1f, 3, 0, 3, 0))
+        btns2.addView(classB, lp(0, MATCH, 1f, 3, 0, 3, 0))
+        btns2.addView(delB, lp(0, MATCH, 1f, 3, 0, 3, 0))
 
         // الصورة المصغّرة (أيقونة افتراضية حتى تتوفر صورة) وبجانبها الاسم والمصدر وحالة الحماية والصيغة
         val thumb = ImageView(this)
@@ -6759,8 +6766,8 @@ deep();
         row.addView(topRow)
         row.addView(bar, lp(MATCH, WRAP, 0f, 0, 6, 0, 0))
         row.addView(msg, lp(MATCH, WRAP, 0f, 0, 2, 0, 0))
-        row.addView(btns, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
-        row.addView(btns2, lp(MATCH, WRAP, 0f, 0, 6, 0, 0))
+        row.addView(btns, lp(MATCH, WRAP, 0f, -3, 8, -3, 0))
+        row.addView(btns2, lp(MATCH, WRAP, 0f, -3, 6, -3, 0))
         row.tag = rw
         list.addView(row, 0, lp(MATCH, WRAP, 0f, 0, 0, 0, 10))
         updateCounts()
