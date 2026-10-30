@@ -360,6 +360,11 @@ class MainActivity : Activity() {
         // الصورة المصغّرة وحالة الحماية والصيغة المعروضة بجانب العنصر
         var thumb: ImageView? = null
         var thumbSet = false
+        @Volatile var thumbBusy = false
+        @Volatile var thumbStop = false
+        var thumbRetry: (() -> Unit)? = null
+        // المحاولات المتبقية لجلب صورة المعاينة؛ لا تُؤخذ لقطة من الفيديو إلا بعد أن تصل إلى صفر
+        @Volatile var thumbTries = 0
         var kindTv: TextView? = null
         var kindProt = 2
         var kindFmt = ""
@@ -1293,7 +1298,7 @@ class MainActivity : Activity() {
         manualBox.gravity = Gravity.CENTER_VERTICAL or Gravity.START
         manualBox.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         card.addView(manualBox, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
-        card.addView(pill("إضافة للتحميلات", true) { addManual() }, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
+        card.addView(pill("إضافة للتحميلات", true) { addManual() }.also { it.height = dp(46) }, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
         col.addView(card, lp(MATCH, WRAP, 0f, 0, 0, 0, 6))
 
         section(col, "التصفح")
@@ -1905,7 +1910,6 @@ class MainActivity : Activity() {
         act(R.drawable.ic_bookmark, "المفضلة") { showBookmarks() }
         act(R.drawable.ic_add, "الاختصارات") { showShortcuts() }
         act(R.drawable.ic_history, "السجل") { showHistory() }
-        act(R.drawable.ic_download, "التنزيلات") { showPage(1) }
         col.addView(ir, lp(MATCH, WRAP, 0f, 0, 18, 0, 0))
 
         // المواقع
@@ -1947,6 +1951,7 @@ class MainActivity : Activity() {
             iv.background = bg(Color.WHITE, 26)
             iv.clipToOutline = true
             iv.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            regFavView(url, iv)
             c.addView(iv, lp(dp(52), dp(52)))
         } else if (glyph.isNotEmpty()) {
             val ch = tv(glyph, 20f, cAccent, true)
@@ -1962,6 +1967,7 @@ class MainActivity : Activity() {
             iv.background = bg(Color.WHITE, 26)
             iv.clipToOutline = true
             iv.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            regFavView(url, iv)
             c.addView(iv, lp(dp(52), dp(52)))
             if (url.isNotEmpty()) fetchFavFor(url)
         }
@@ -2031,10 +2037,37 @@ class MainActivity : Activity() {
     }
 
     // يجلب أكبر أيقونة حقيقية متاحة للموقع، ثم favicon.ico كاحتياط، مرة واحدة لكل موقع
+    // طابور واحد: الشعارات تُجلب واحداً بعد الآخر
+    private val favExec = Executors.newSingleThreadExecutor()
+
+    // أيقونات البطاقات الظاهرة حالياً في الرئيسية، لتحديث الواصل منها فقط
+    private val favViews = ArrayList<Pair<String, java.lang.ref.WeakReference<ImageView>>>()
+
+    private fun regFavView(url: String, iv: ImageView) {
+        val h = try { Uri.parse(url).host } catch (e: Throwable) { null } ?: return
+        favViews.add(Pair(h, java.lang.ref.WeakReference(iv)))
+    }
+
+    private fun applyFav(h: String, bmp: android.graphics.Bitmap) {
+        val it = favViews.iterator()
+        while (it.hasNext()) {
+            val e = it.next()
+            val iv = e.second.get()
+            if (iv == null) { it.remove(); continue }
+            if (e.first != h) continue
+            iv.setImageBitmap(bmp)
+            val pad = if (bmp.width >= 64) dp(8) else dp(11)
+            iv.setPadding(pad, pad, pad, pad)
+        }
+    }
+
     private fun fetchFavFor(u: String) {
         val h = try { Uri.parse(u).host } catch (e: Throwable) { null }
-        if (h == null || favTried.putIfAbsent(h, true) != null) return
-        Thread {
+        if (h == null) return
+        // المواقع التي جُرّبت سابقاً لا يُعاد البحث عن شعارها عند كل فتح
+        if (prefs().contains("fav_tried_" + h)) return
+        if (favTried.putIfAbsent(h, true) != null) return
+        favExec.execute {
             try {
                 val cands = ArrayList<String>()
                 cands.addAll(iconLinks(h).take(3))
@@ -2052,13 +2085,15 @@ class MainActivity : Activity() {
                 if (bmp != null && (old == null || bmp.width > old.width)) {
                     favCache[h] = bmp
                     saveFav(h, bmp)
+                    // تحديث أيقونة هذا الموقع فقط، دون إعادة رسم الشاشة
                     runOnUiThread {
-                        try { if (cur?.start == true) refreshStart() } catch (e: Throwable) { }
+                        try { applyFav(h, bmp) } catch (e: Throwable) { }
                     }
                 }
             } catch (e: Throwable) {
             }
-        }.start()
+            try { prefs().edit().putLong("fav_tried_" + h, System.currentTimeMillis()).apply() } catch (e: Throwable) { }
+        }
     }
 
     private fun tileGrid(parent: LinearLayout, tiles: List<View>) {
@@ -2085,6 +2120,7 @@ class MainActivity : Activity() {
     }
 
     private fun refreshStart() {
+        favViews.clear()
         startSites.removeAllViews()
         startBm.removeAllViews()
         val sc = loadShortcuts()
@@ -3588,7 +3624,7 @@ class MainActivity : Activity() {
     }
 
     // يعمل على خيط الشبكة؛ أي فشل يعيد null فيتولى المتصفح الطلب بنفسه
-    private fun rcServe(u: String, h: Map<String, String>): WebResourceResponse? {
+    private fun rcServe(u: String, h: Map<String, String>, stop: () -> Boolean = { false }): WebResourceResponse? {
         val key = rcKey(u)
         val bin = File(rcDir, key + ".bin")
         val meta = File(rcDir, key + ".meta")
@@ -3609,12 +3645,17 @@ class MainActivity : Activity() {
                 tmp.outputStream().use { o ->
                     val buf = ByteArray(16384)
                     while (true) {
+                        if (stop()) break
                         val n = i.read(buf)
                         if (n < 0) break
                         o.write(buf, 0, n)
                         size += n
                     }
                 }
+            }
+            if (stop()) {
+                tmp.delete()
+                return null
             }
             val okType = ct.startsWith("image/") || ct.startsWith("font/") || ct.contains("font")
             if (okType && size > 0) {
@@ -3628,6 +3669,19 @@ class MainActivity : Activity() {
             val st = java.io.FileInputStream(tmp)
             tmp.delete()
             rcResponse(ct, st)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    private fun rcLocal(u: String): Pair<File, String>? {
+        return try {
+            if (!prefs().getBoolean("rescache", true)) return null
+            val key = rcKey(u)
+            val bin = File(rcDir, key + ".bin")
+            val meta = File(rcDir, key + ".meta")
+            if (!bin.exists() || !meta.exists()) return null
+            Pair(bin, meta.readText().split("\n")[0])
         } catch (e: Throwable) {
             null
         }
@@ -4376,33 +4430,12 @@ class MainActivity : Activity() {
     private val galPool = Executors.newFixedThreadPool(4)
 
     private fun saveImageSync(src: String, page: String, onProgress: ((Long, Long) -> Unit)? = null): String {
-        val c = conn(src, hdrFor(src, page))
-        val ext = imgExt((c.contentType ?: "").lowercase(), src)
-        val f = File(cacheDir, "tango_img_" + System.nanoTime() + "." + ext)
-        try {
-            val total = c.contentLengthLong
-            c.inputStream.use { i ->
-                f.outputStream().use { o ->
-                    val buf = ByteArray(16384)
-                    var done = 0L
-                    var lastP = -1
-                    while (true) {
-                        val n = i.read(buf)
-                        if (n < 0) break
-                        o.write(buf, 0, n)
-                        done += n
-                        if (onProgress != null) {
-                            val pc = if (total > 0) (done * 100 / total).toInt() else -1
-                            if (pc != lastP) { lastP = pc; onProgress(done, total) }
-                        }
-                    }
-                }
-            }
-        } finally {
-            try { c.disconnect() } catch (e: Throwable) {}
-        }
-        val mime = if (ext == "jpg") "image/jpeg" else "image/" + ext
-        return saveToDownloads(f, mime)
+        val loc = rcLocal(src) ?: throw Exception("الصورة غير ملتقطة")
+        val ext0 = imgExt(loc.second.lowercase(), src)
+        val f0 = File(cacheDir, "tango_img_" + System.nanoTime() + "." + ext0)
+        loc.first.copyTo(f0, true)
+        onProgress?.invoke(f0.length(), f0.length())
+        return saveToDownloads(f0, if (ext0 == "jpg") "image/jpeg" else "image/" + ext0)
     }
 
     private fun showImagesSection() {
@@ -4434,7 +4467,13 @@ class MainActivity : Activity() {
                     }
                 } catch (e: Throwable) {
                 }
-                if (list.isEmpty()) toast("لم أجد صوراً في هذه الصفحة") else openImagesDialog(list, page)
+                galPool.execute {
+                    val cap = ArrayList<GImg>()
+                    for (g in list) if (rcLocal(g.u) != null) cap.add(g)
+                    ui.post {
+                        if (cap.isEmpty()) toast("لم أجد صوراً في هذه الصفحة") else openImagesDialog(cap, page)
+                    }
+                }
             }
         } catch (e: Throwable) {
             toast("تعذر قراءة صور الصفحة")
@@ -4523,8 +4562,8 @@ class MainActivity : Activity() {
             g.loaded = true
             galPool.execute {
                 try {
-                    val c = conn(g.u, hdrFor(g.u, page))
-                    val d = try { c.inputStream.use { readLimited(it, 8000000) } } finally { try { c.disconnect() } catch (e: Throwable) {} }
+                    val loc = rcLocal(g.u) ?: return@execute
+                    val d = loc.first.inputStream().use { readLimited(it, 8000000) }
                     val o = android.graphics.BitmapFactory.Options()
                     o.inJustDecodeBounds = true
                     android.graphics.BitmapFactory.decodeByteArray(d, 0, d.size, o)
@@ -5536,6 +5575,7 @@ deep();
     }
 
     private fun clearFound() {
+        for (cc in cands.values) if (cc.rw.view.parent !== activeBox) cc.rw.thumbStop = true
         for (cc in cands.values) forgetTask(cc.rw.id)
         list.removeAllViews()
         found.clear()
@@ -5555,6 +5595,7 @@ deep();
     private fun fmtDur(sec: Double): String = fmtTime(sec.toLong())
 
     private fun dropCand(c: Cand) {
+        c.rw.thumbStop = true
         forgetTask(c.rw.id)
         list.removeView(c.view)
         found.remove(c.url)
@@ -5744,6 +5785,14 @@ deep();
         return android.graphics.Bitmap.createScaledBitmap(b, maxOf(1, (b.width * k).toInt()), maxOf(1, (b.height * k).toInt()), true)
     }
 
+    // الفيديو حُذف من القائمة: لا فائدة من جلب صورته
+    private fun gone(r: Row): Boolean = r.removed || r.thumbStop
+
+    // صورة كل فيديو تُحفظ مرة واحدة بعد جلبها، فإذا عاد الفيديو للالتقاط (بعد التنقل بين الصفحات) تُستخدم المحفوظة ولا تُطلب من جديد
+    private val videoThumbs = object : LinkedHashMap<String, android.graphics.Bitmap>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, android.graphics.Bitmap>?): Boolean = size > 64
+    }
+
     private fun setThumb(r: Row, b: android.graphics.Bitmap?) {
         val iv = r.thumb ?: return
         if (b == null) return
@@ -5751,6 +5800,7 @@ deep();
         iv.scaleType = ImageView.ScaleType.CENTER_CROP
         iv.setImageBitmap(b)
         r.thumbSet = true
+        if (r.url.isNotEmpty()) synchronized(videoThumbs) { videoThumbs[r.url] = b }
         if (!r.quiet && r.id.isNotEmpty()) {
             val id = r.id
             try { taskIo.execute { TaskStore.saveThumb(this, id, b) } } catch (e: Throwable) {}
@@ -5758,10 +5808,11 @@ deep();
         }
     }
 
-    private fun readLimited(s: java.io.InputStream, max: Int): ByteArray {
+    private fun readLimited(s: java.io.InputStream, max: Int, stop: () -> Boolean = { false }): ByteArray {
         val o = java.io.ByteArrayOutputStream()
         val buf = ByteArray(16384)
         while (o.size() < max) {
+            if (stop()) break
             val n = s.read(buf, 0, minOf(buf.size, max - o.size()))
             if (n < 0) break
             o.write(buf, 0, n)
@@ -5769,36 +5820,118 @@ deep();
         return o.toByteArray()
     }
 
-    // صورة المعاينة التي يوفرها الموقع (poster أو og:image): تُنزَّل بنفس ترويسات الالتقاط
+    // صورة المعاينة التي يوفرها الموقع (poster أو og:image): تُنزَّل مرة واحدة فقط لكل رابط وتُستخدم لكل الفيديوهات التي تشترك فيها، وتتوقف إذا حُذفت كل الفيديوهات التي تنتظرها
+    private val posterFail = HashSet<String>()
+    private val posterWait = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CopyOnWriteArrayList<Row>>()
+    private val posterBmp = object : LinkedHashMap<String, android.graphics.Bitmap>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, android.graphics.Bitmap>?): Boolean = size > 16
+    }
+
     private fun thumbFromUrl(r: Row, src: String, h: Map<String, String>) {
+        if (gone(r)) return
+        if (posterFail.contains(src)) { r.thumbRetry?.invoke(); return }
+        val have = posterBmp[src]
+        if (have != null) {
+            if (!r.thumbSet) setThumb(r, have)
+            return
+        }
+        val waiting = posterWait[src]
+        if (waiting != null) {
+            r.thumbBusy = true
+            waiting.add(r)
+            return
+        }
+        val rows = java.util.concurrent.CopyOnWriteArrayList<Row>()
+        rows.add(r)
+        r.thumbBusy = true
+        posterWait[src] = rows
+        val stop: () -> Boolean = { rows.all { gone(it) } }
         try {
             imgPool.execute {
+                var sb: android.graphics.Bitmap? = null
                 try {
-                    val c = conn(src, h)
-                    val d = try { c.inputStream.use { readLimited(it, 4000000) } } finally { try { c.disconnect() } catch (e: Throwable) {} }
-                    val o = android.graphics.BitmapFactory.Options()
-                    o.inJustDecodeBounds = true
-                    android.graphics.BitmapFactory.decodeByteArray(d, 0, d.size, o)
-                    var ss = 1
-                    while (o.outWidth / ss > 640) ss *= 2
-                    val o2 = android.graphics.BitmapFactory.Options()
-                    o2.inSampleSize = ss
-                    val bmp = android.graphics.BitmapFactory.decodeByteArray(d, 0, d.size, o2)
-                    if (bmp != null) {
-                        val sb = shrinkBmp(bmp)
-                        ui.post { if (!r.thumbSet) setThumb(r, sb) }
+                    if (!stop()) {
+                        val d: ByteArray? = if (prefs().getBoolean("rescache", true)) {
+                            rcServe(src, h, stop)?.data?.use { readLimited(it, 4000000, stop) }
+                        } else {
+                            val c = conn(src, h)
+                            try { c.inputStream.use { readLimited(it, 4000000, stop) } } finally { try { c.disconnect() } catch (e: Throwable) {} }
+                        }
+                        if (d != null && !stop()) {
+                            val o = android.graphics.BitmapFactory.Options()
+                            o.inJustDecodeBounds = true
+                            android.graphics.BitmapFactory.decodeByteArray(d, 0, d.size, o)
+                            var ss = 1
+                            while (o.outWidth / ss > 640) ss *= 2
+                            val o2 = android.graphics.BitmapFactory.Options()
+                            o2.inSampleSize = ss
+                            val bmp = android.graphics.BitmapFactory.decodeByteArray(d, 0, d.size, o2)
+                            if (bmp != null) sb = shrinkBmp(bmp)
+                        }
                     }
                 } catch (e: Throwable) {
                 }
+                val fin = sb
+                ui.post {
+                    if (fin != null) posterBmp[src] = fin
+                    else if (!stop()) posterFail.add(src)
+                    val ws = posterWait.remove(src)
+                    if (ws != null) for (w in ws) {
+                        w.thumbBusy = false
+                        if (w.thumbSet || gone(w)) continue
+                        if (fin != null) setThumb(w, fin) else if (!stop()) w.thumbRetry?.invoke()
+                    }
+                }
             }
         } catch (e: Throwable) {
+            posterWait.remove(src)
+            for (w in rows) w.thumbBusy = false
+        }
+    }
+
+    // لقطة من الفيديو: فقط بعد فشل المحاولات الثلاث، ولا تؤخذ أبداً إذا كان «مخزن الصور والأيقونات» مطفأً
+    private fun frameFallback(rw: Row, vurl: String, h: Map<String, String>) {
+        if (rw.thumbSet || gone(rw) || rw.thumbBusy) return
+        if (!prefs().getBoolean("rescache", true)) return
+        // الفيديو نُزّل فعلاً: تؤخذ اللقطة من الملف المحفوظ على الجهاز دون استهلاك إنترنت
+        val fl = rw.finalLoc
+        if (fl != null) { thumbFromFile(rw, fl, rw.finalIsUri); return }
+        rw.thumbBusy = true
+        try {
+            analyzer.execute {
+                try {
+                    if (gone(rw)) return@execute
+                    val r = MediaMetadataRetriever()
+                    try {
+                        val hh = HashMap<String, String>()
+                        for ((k, v) in h) if (v.isNotEmpty()) hh[k] = v
+                        r.setDataSource(vurl, hh)
+                        if (gone(rw)) return@execute
+                        val du = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                        val fr = try { r.getFrameAtTime(if (du > 4000L) 2000000L else 0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) } catch (e: Throwable) { null }
+                        if (fr != null) {
+                            val sb = shrinkBmp(fr)
+                            ui.post { if (!rw.thumbSet && !gone(rw)) setThumb(rw, sb) }
+                        }
+                    } finally {
+                        try { r.release() } catch (e: Throwable) {}
+                    }
+                } catch (e: Throwable) {
+                } finally {
+                    rw.thumbBusy = false
+                }
+            }
+        } catch (e: Throwable) {
+            rw.thumbBusy = false
         }
     }
 
     // يسأل الصفحة عن صورة المعاينة (تُعاد المحاولة لأن الصفحة قد لا تكون جاهزة وقت الالتقاط)
     private fun findPagePoster(c: Cand, owner: Tab?, h: Map<String, String>, tries: Int) {
         val t = owner ?: return
-        if (c.rw.thumbSet || c.rw.removed || tries <= 0) return
+        if (c.rw.thumbSet || gone(c.rw)) return
+        c.rw.thumbTries = maxOf(tries, 0)
+        if (tries <= 0) { frameFallback(c.rw, c.url, h); return }
         val js = "(function(){try{var v=document.querySelector('video[poster]');if(v&&v.poster)return v.poster;" +
             "var m=document.querySelector('meta[property=\"og:image\"],meta[name=\"twitter:image\"]');" +
             "return m&&m.content?m.content:''}catch(e){return ''}})()"
@@ -5811,7 +5944,10 @@ deep();
                 } catch (e: Throwable) {
                 }
                 if (s.startsWith("http://") || s.startsWith("https://")) {
-                    if (!c.rw.thumbSet) thumbFromUrl(c.rw, s, h)
+                    if (!c.rw.thumbSet) {
+                        c.rw.thumbRetry = { ui.postDelayed({ findPagePoster(c, owner, h, tries - 1) }, 3000) }
+                        thumbFromUrl(c.rw, s, h)
+                    }
                 } else {
                     ui.postDelayed({ findPagePoster(c, owner, h, tries - 1) }, 3000)
                 }
@@ -5822,7 +5958,15 @@ deep();
 
     // لقطة من وسائط قابلة للقراءة (ملف محفوظ)؛ لا تُستخرج من محتوى مشفّر
     private fun thumbFromFile(r: Row, loc: String, isUri: Boolean) {
-        if (r.thumbSet) return
+        if (r.thumbSet || gone(r)) return
+        // لقطة من الفيديو: لا تؤخذ أبداً إذا كان المخزن مطفأً، ولا قبل انتهاء المحاولات الثلاث (وقتها تتولاها سلسلة المحاولات)
+        if (!prefs().getBoolean("rescache", true)) return
+        if (r.thumbTries > 0) return
+        if (r.thumbBusy) {
+            ui.postDelayed({ thumbFromFile(r, loc, isUri) }, 1500)
+            return
+        }
+        r.thumbBusy = true
         try {
             imgPool.execute {
                 val mr = MediaMetadataRetriever()
@@ -5838,9 +5982,11 @@ deep();
                 } catch (e: Throwable) {
                 } finally {
                     try { mr.release() } catch (e: Throwable) {}
+                    r.thumbBusy = false
                 }
             }
         } catch (e: Throwable) {
+            r.thumbBusy = false
         }
     }
 
@@ -5962,13 +6108,6 @@ deep();
                         val wd = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
                         val br = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull() ?: 0L
                         val du = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                        if (!c.rw.thumbSet) {
-                            val fr = try { r.getFrameAtTime(if (du > 4000L) 2000000L else 0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) } catch (e: Throwable) { null }
-                            if (fr != null) {
-                                val sb = shrinkBmp(fr)
-                                ui.post { if (!c.rw.thumbSet) setThumb(c.rw, sb) }
-                            }
-                        }
                         val side = if (ht > 0) minOf(ht, if (wd > 0) wd else ht).takeIf { wd in 1 until ht } ?: ht else 0
                         ui.post {
                             val m = c.meta
@@ -6773,7 +6912,8 @@ deep();
         updateCounts()
         if (restore == null) {
             classifyCand(cand, h)
-            findPagePoster(cand, owner, h, 3)
+            val kept = synchronized(videoThumbs) { videoThumbs[u] }
+            if (kept != null) setThumb(rw, kept) else findPagePoster(cand, owner, h, 3)
         }
     }
 
