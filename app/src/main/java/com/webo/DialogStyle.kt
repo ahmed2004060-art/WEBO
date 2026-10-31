@@ -28,6 +28,7 @@ class StyledBuilder(private val ctx: Context) : AlertDialog.Builder(ctx) {
     override fun show(): AlertDialog {
         val d = create()
         d.show()
+        try { ScanHook.dialogs.add(d) } catch (e: Throwable) {}
         try {
             DlgStyle.style(ctx, d)
         } catch (e: Throwable) {
@@ -230,6 +231,7 @@ object DlgStyle {
 
     // رسالة Toast بستايل التطبيق: بطاقة بإطار بلون التأكيد. تعود للرسالة العادية إن تعذر العرض
     fun toast(ctx: Context, msg: String, long: Boolean = false) {
+        try { ScanHook.toastSink?.invoke(msg) } catch (e: Throwable) {}
         try {
             val p = Pal(ctx)
             val t = TextView(ctx)
