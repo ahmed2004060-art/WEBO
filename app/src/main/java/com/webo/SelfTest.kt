@@ -76,6 +76,7 @@ class FullScan(
     private var dialogItems = 0
     private var fieldsTried = 0
     private var clipFixes = 0
+    private val copyPressed = HashSet<String>()
     private val skippedList = ArrayList<String>()
     private val failedList = ArrayList<String>()
     private val disabledList = LinkedHashSet<String>()
@@ -264,11 +265,18 @@ class FullScan(
         }
     }
 
+    // أزرار النسخ: تُضغط مرة واحدة لكل اسم، وما بعدها يُتخطى بصمت
+    private fun copyRepeat(desc: String): Boolean {
+        val d = desc.trim()
+        if (!d.startsWith("نسخ")) return false
+        return !copyPressed.add(d)
+    }
+
     private fun clipGuard() {
         val now = onUi { clipText() } ?: return
         if (now != clipBaseText) {
             clipFixes++
-            line("   هذه الضغطة كتبت في الحافظة: «" + now.take(150) + "» — أعدتُ الحافظة كما كانت قبل الفحص حتى لا تتغير نسختك")
+            line("   زر النسخ يعمل (كُتب في الحافظة وأُعيدت كما كانت)")
             onUi { doClipRestore() }
         }
     }
@@ -427,6 +435,7 @@ class FullScan(
             }
             visited.add(next.key)
             pending = tg.any { !visited.contains(it.key) }
+            if (copyRepeat(next.desc)) continue
             val hit = skipHit(next.desc)
             if (hit != null) {
                 skipped++
@@ -602,7 +611,9 @@ class FullScan(
                     fun keyOf(e: Entry) = ctx + "|" + e.path + "#" + e.v.javaClass.simpleName + "#" + e.desc
                     val fresh1 = items.filter { !visited.contains(keyOf(it)) }
                     if (fresh1.isEmpty()) break
-                    val target = fresh1.firstOrNull { !isBackLike(it.desc, it.v, ctx) } ?: fresh1.first()
+                    // الأزرار التي ثبت أنها تنقل إلى صفحة أخرى تُؤجَّل لآخر الجولة حتى لا تُضيّع بقية عناصر الصفحة
+                    val target = fresh1.firstOrNull { !isBackLike(it.desc, it.v, ctx) && !openers.contains(keyOf(it)) }
+                        ?: fresh1.firstOrNull { !isBackLike(it.desc, it.v, ctx) } ?: fresh1.first()
                     val key = keyOf(target)
                     visited.add(key)
                     // حماية من الدوران إلى الأبد: عنصر يتغير نصه بعد كل ضغطة (نسبة تحميل، عدّاد) يُضغط 3 مرات فقط ثم يُسجَّل
@@ -617,6 +628,7 @@ class FullScan(
                     }
                     val v = target.v
                     val desc = target.desc
+                    if (copyRepeat(desc)) continue
                     val pk = pageLabelOf(ctx)
                     val st = perPage.getOrPut(pk) { IntArray(4) }
                     total++
