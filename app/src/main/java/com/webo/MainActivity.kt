@@ -1650,6 +1650,11 @@ class MainActivity : Activity() {
                     { u -> load(u) },
                     { cur?.web?.url + "|" + cur?.web?.title + "|" + cur?.web?.progress },
                     { closeNavMenu() },
+                    { page },
+                    { "p" + page + ";sub=" + setSub + ";menu=" + (if (navOverlay.visibility == View.VISIBLE) 1 else 0) },
+                    { i -> closeNavMenu(); showPage(i); if (i == 3 && setSub.isNotEmpty()) openSettingsSub("") },
+                    { cur?.web },
+                    { onBackPressed() },
                     { c, u -> scanDl(c, u) },
                     { m -> scanSink(m) }
                 )
@@ -1671,6 +1676,13 @@ class MainActivity : Activity() {
         out.typeface = Typeface.MONOSPACE
         out.setTextIsSelectable(true)
         out.setPadding(dp(10), dp(10), dp(10), dp(10))
+        if (scanBuf.isEmpty() && scanner?.running != true) {
+            try {
+                val lf = File(getExternalFilesDir(null) ?: filesDir, "scan_live.txt")
+                if (lf.exists() && lf.length() > 0) scanBuf.append("(هذا سجل آخر فحص استُرجع من الملف لأنه لم يُحفظ)\n").append(lf.readText(Charsets.UTF_8))
+            } catch (e: Throwable) {
+            }
+        }
         out.text = scanBuf.toString()
         val sv = ScrollView(this)
         sv.background = bg(cCard, 14, cLine)
