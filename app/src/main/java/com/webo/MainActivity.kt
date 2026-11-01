@@ -1465,7 +1465,7 @@ class MainActivity : Activity() {
         } else {
             val titles = mapOf(
                 "look" to "المظهر والواجهة", "browse" to "التصفح والبحث", "capture" to "التقاط الفيديو",
-                "net" to "التحميل والشبكة", "perf" to "الأداء والتخزين", "privacy" to "الخصوصية والبيانات", "about" to "حول التطبيق", "scan" to "قسم الفحص الشامل"
+                "net" to "التحميل والشبكة", "perf" to "الأداء والتخزين", "privacy" to "الخصوصية والبيانات", "about" to "حول التطبيق"
             )
             val head = LinearLayout(this)
             head.orientation = LinearLayout.HORIZONTAL
@@ -1481,7 +1481,6 @@ class MainActivity : Activity() {
                 "perf" -> buildSetPerf(col)
                 "privacy" -> buildSetPrivacy(col)
                 "about" -> buildSetAbout(col)
-                "scan" -> buildSetScan(col)
             }
         }
         val sv = ScrollView(this)
@@ -1523,188 +1522,7 @@ class MainActivity : Activity() {
         section(col, "النظام")
         hubRow(col, R.drawable.ic_speed, "الأداء والتخزين", "توفير البيانات وحفظ الصفحات والذاكرة", "perf")
         hubRow(col, R.drawable.ic_cookie, "الخصوصية والبيانات", "مسح السجل والكاش والكوكيز", "privacy")
-        hubRow(col, R.drawable.ic_report, "قسم الفحص الشامل", "ابدأ الفحص واقرأ النتائج حرفياً", "scan")
         hubRow(col, R.drawable.ic_alert, "حول التطبيق", "الإصدار والوصف", "about")
-    }
-
-    // ---------- قسم الفحص الشامل ----------
-
-    private var scanner: FullScan? = null
-    private val scanBuf = StringBuilder()
-    private var scanOut: TextView? = null
-    private var scanScroll: ScrollView? = null
-
-    private fun scanSink(s: String) {
-        runOnUiThread {
-            if (s == "\u0000done") {
-                try {
-                    showPage(3)
-                    openSettingsSub("scan")
-                } catch (e: Throwable) {
-                }
-                return@runOnUiThread
-            }
-            scanBuf.append(s).append('\n')
-            try {
-                scanOut?.append(s + "\n")
-                scanScroll?.post { scanScroll?.fullScroll(View.FOCUS_DOWN) }
-            } catch (e: Throwable) {
-            }
-        }
-    }
-
-    // ربط الفحص بمحرك التحميل الحقيقي: نفس الصفوف والأزرار التي يستعملها المستخدم
-    private fun scanDl(cmd: String, u: String): String {
-        val c = cands[u]
-        when (cmd) {
-            "add" -> {
-                if (c != null) return "الرابط موجود مسبقاً في القائمة"
-                val h = HashMap<String, String>()
-                h["Referer"] = ""
-                h["Cookie"] = CookieManager.getInstance().getCookie(u) ?: ""
-                addFound(u, h, null, cur, "")
-                return if (cands[u] != null) "أُضيف" else "لم يُضف الرابط (رفضه التطبيق)"
-            }
-            "remove" -> {
-                if (c == null) return "لا يوجد صف لهذا الرابط"
-                deleteRow(c)
-                return "أُزيل الصف"
-            }
-        }
-        val r = c?.rw ?: return "لا يوجد صف لهذا الرابط في التحميلات"
-        return when (cmd) {
-            "start" -> {
-                val en = r.btn.isEnabled
-                r.btn.performClick()
-                "تم الضغط (الزر كان " + (if (en) "مفعّلاً" else "معطّلاً") + ")"
-            }
-            "pause" -> {
-                val was = r.pause.text.toString()
-                val vis = r.pause.visibility == View.VISIBLE
-                r.pause.performClick()
-                "كان نص الزر «" + was + "» (" + (if (vis) "ظاهر" else "غير ظاهر") + ") وصار «" + r.pause.text + "»"
-            }
-            "status" -> {
-                val fl = r.finalLoc
-                var size = ""
-                if (fl != null) {
-                    try {
-                        size = if (fl.startsWith("content://")) {
-                            (contentResolver.openAssetFileDescriptor(Uri.parse(fl), "r")?.use { it.length } ?: -1L).toString()
-                        } else File(fl).length().toString()
-                    } catch (e: Throwable) {
-                        size = "تعذر القراءة: " + (e.message ?: e.javaClass.simpleName)
-                    }
-                }
-                val w = r.work
-                val wsz = try { if (w != null && w.exists()) (w.walkTopDown().filter { it.isFile }.sumOf { it.length() }).toString() else "-" } catch (e: Throwable) { "؟" }
-                "state=" + r.state + "|bytes=" + r.ctl.bytes.get() + "|paused=" + r.ctl.paused + "|pausebtn=" + r.pause.text +
-                    "|work=" + wsz + "|final=" + (fl ?: "") + "|size=" + size + "|msg=" + r.msg.text.toString().replace("\n", " / ")
-            }
-            else -> "أمر غير معروف: " + cmd
-        }
-    }
-
-    private fun saveScan() {
-        val txt = scanBuf.toString()
-        if (txt.isEmpty()) {
-            toast("لا يوجد فحص لحفظه")
-            return
-        }
-        val name = "webo_scan_" + java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date()) + ".txt"
-        try {
-            val bytes = ("\uFEFF" + txt).toByteArray(Charsets.UTF_8)
-            if (Build.VERSION.SDK_INT >= 29) {
-                val v = ContentValues()
-                v.put(MediaStore.Downloads.DISPLAY_NAME, name)
-                v.put(MediaStore.Downloads.MIME_TYPE, "text/plain")
-                v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v) ?: throw RuntimeException("تعذر إنشاء الملف")
-                val os = contentResolver.openOutputStream(uri) ?: throw RuntimeException("تعذر فتح الملف للكتابة")
-                os.use { it.write(bytes) }
-            } else {
-                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                dir.mkdirs()
-                java.io.File(dir, name).writeBytes(bytes)
-            }
-            toast("تم حفظ الفحص في مجلد التنزيلات: $name")
-        } catch (e: Throwable) {
-            toast("تعذر حفظ الفحص: " + (e.message ?: e.javaClass.name))
-        }
-    }
-
-    private fun buildSetScan(col: LinearLayout) {
-        col.tag = "scan_page"
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        val bStart = pill("إبدأ الفحص", true) {
-            if (scanner?.running == true) {
-                toast("الفحص يعمل الآن")
-            } else {
-                scanBuf.setLength(0)
-                scanOut?.text = ""
-                val sc = FullScan(
-                    this, root, { pagesList.size },
-                    { i -> navItems.getOrNull(i)?.second?.text?.toString() ?: ("صفحة " + (i + 1)) },
-                    { i -> showPage(i) },
-                    { u -> load(u) },
-                    { cur?.web?.url + "|" + cur?.web?.title + "|" + cur?.web?.progress },
-                    { closeNavMenu() },
-                    { page },
-                    { "p" + page + ";sub=" + setSub + ";menu=" + (if (navOverlay.visibility == View.VISIBLE) 1 else 0) },
-                    { i -> closeNavMenu(); showPage(i); if (i == 3 && setSub.isNotEmpty()) openSettingsSub("") },
-                    { cur?.web },
-                    { onBackPressed() },
-                    { c, u -> scanDl(c, u) },
-                    { m -> scanSink(m) }
-                )
-                scanner = sc
-                sc.start()
-            }
-        }
-        val bStop = pill("ايقاف الفحص", false) {
-            val sc = scanner
-            if (sc == null || !sc.running) toast("لا يوجد فحص يعمل") else sc.stop()
-        }
-        row.addView(bStart, lp(0, WRAP, 1f, 0, 0, 6, 0))
-        row.addView(bStop, lp(0, WRAP, 1f, 6, 0, 0, 0))
-        col.addView(row, lp(MATCH, WRAP, 0f, 0, 4, 0, 10))
-
-        val out = TextView(this)
-        out.setTextColor(cText)
-        out.textSize = 11f
-        out.typeface = Typeface.MONOSPACE
-        out.setTextIsSelectable(true)
-        out.setPadding(dp(10), dp(10), dp(10), dp(10))
-        if (scanBuf.isEmpty() && scanner?.running != true) {
-            try {
-                val lf = File(getExternalFilesDir(null) ?: filesDir, "scan_live.txt")
-                if (lf.exists() && lf.length() > 0) scanBuf.append("(هذا سجل آخر فحص استُرجع من الملف لأنه لم يُحفظ)\n").append(lf.readText(Charsets.UTF_8))
-            } catch (e: Throwable) {
-            }
-        }
-        out.text = scanBuf.toString()
-        val sv = ScrollView(this)
-        sv.background = bg(cCard, 14, cLine)
-        sv.addView(out)
-        sv.setOnTouchListener { v, _ ->
-            v.parent.requestDisallowInterceptTouchEvent(true)
-            false
-        }
-        scanOut = out
-        scanScroll = sv
-        col.addView(sv, lp(MATCH, dp(420), 0f, 0, 0, 0, 10))
-        sv.post { sv.fullScroll(View.FOCUS_DOWN) }
-
-        val row2 = LinearLayout(this)
-        row2.orientation = LinearLayout.HORIZONTAL
-        val bCopy = pill("نسخ", true) {
-            if (scanBuf.isEmpty()) toast("لا يوجد فحص لنسخه") else copyText(scanBuf.toString())
-        }
-        val bSave = pill("حفظ الفحص", false) { saveScan() }
-        row2.addView(bCopy, lp(0, WRAP, 1f, 0, 0, 6, 0))
-        row2.addView(bSave, lp(0, WRAP, 1f, 6, 0, 0, 0))
-        col.addView(row2, lp(MATCH, WRAP))
     }
 
     private fun buildSetLook(col: LinearLayout) {

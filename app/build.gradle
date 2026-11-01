@@ -20,6 +20,7 @@ android {
         def runNo = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
         versionCode 100 + runNo
         versionName "1.14." + runNo
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     // مفتاح توقيع ثابت داخل المشروع (يمكن تجاوزه بأسرار GitHub إن وُجدت)
     def ksFile = System.getenv("KEYSTORE_FILE") ?: "webo.keystore"
@@ -48,4 +49,10 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.4.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'
     implementation 'androidx.media3:media3-exoplayer-dash:1.4.1'
+
+    // مستكشف الاختبار الآلي (UI Automator) — يحل محل خدمة Accessibility القديمة
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
 }
