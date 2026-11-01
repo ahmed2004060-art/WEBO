@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK and Run Explorer Test
 on:
   push:
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
-      - name: Build
+      - name: Build APK
         run: |
           set +e
           gradle assembleDebug --no-daemon --console=plain > build.log 2>&1
@@ -26,12 +26,36 @@ jobs:
             echo "::error title=GradleLog::$msg"
           fi
           exit $code
-      - name: Compress
+      - name: Enable KVM for emulator
         run: |
-          command -v 7z >/dev/null || sudo apt-get install -y p7zip-full
-          cd app/build/outputs/apk/debug
-          7z a -t7z -mx=9 -m0=lzma2 -md=128m -mfb=273 -ms=on WEBO.7z app-debug.apk
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Webo explorer test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            gradle installDebug --no-daemon --console=plain
+            adb shell pm grant com.webo android.permission.CAMERA || true
+            adb shell pm grant com.webo android.permission.RECORD_AUDIO || true
+            adb shell pm grant com.webo android.permission.ACCESS_FINE_LOCATION || true
+            adb shell pm grant com.webo android.permission.ACCESS_COARSE_LOCATION || true
+            gradle connectedDebugAndroidTest --no-daemon --console=plain || true
+            mkdir -p webo-test-report
+            adb pull /sdcard/Download/webo-test-report webo-test-report || true
+      - name: Zip test report
+        if: always()
+        run: |
+          if [ -d webo-test-report ]; then zip -r webo-test-report.zip webo-test-report; fi
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "v${{ github.run_number }}" app/build/outputs/apk/debug/WEBO.7z --title "WEBO" --notes "apk"
+        run: |
+          assets="app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f webo-test-report.zip ]; then assets="$assets webo-test-report.zip"; fi
+          gh release create "v${{ github.run_number }}" $assets --title "WEBO" --notes "apk + تقرير اختبار Webo"
