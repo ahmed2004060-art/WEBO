@@ -49,12 +49,15 @@ jobs:
             adb shell pm grant com.webo android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant com.webo android.permission.ACCESS_COARSE_LOCATION || true
             gradle connectedDebugAndroidTest --no-daemon --console=plain || true
-            mkdir -p webo-test-report
-            adb pull /sdcard/Download/webo-test-report webo-test-report || true
+            mkdir -p webo-test-report/device-report
+            adb pull /sdcard/Android/data/com.webo/files/webo-test-report webo-test-report/device-report || true
       - name: Zip test report
         if: always()
         run: |
-          if [ -d webo-test-report ]; then zip -r webo-test-report.zip webo-test-report; fi
+          mkdir -p webo-test-report
+          if [ -d app/build/reports/androidTests ]; then cp -r app/build/reports/androidTests webo-test-report/junit-report; fi
+          if [ -d app/build/outputs/androidTest-results ]; then cp -r app/build/outputs/androidTest-results webo-test-report/junit-xml; fi
+          zip -r webo-test-report.zip webo-test-report
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}

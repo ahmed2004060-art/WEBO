@@ -3,7 +3,6 @@ package com.webo
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.os.Environment
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
@@ -76,7 +75,9 @@ class WeboExplorerTest {
         context = inst.targetContext
 
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val base = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "webo-test-report")
+        // مجلد خاص بتطبيق Webo نفسه (App-specific external storage) — لا يحتاج أي
+        // إذن تخزين على أي إصدار أندرويد (بعكس مجلد Downloads العام).
+        val base = File(context.getExternalFilesDir(null), "webo-test-report")
         dir = File(base, ts)
         shotsDir = File(dir, "shots")
         shotsDir.mkdirs()
