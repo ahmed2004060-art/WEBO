@@ -2,7 +2,6 @@ package com.webo
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
@@ -167,8 +166,8 @@ class WeboExplorerTest {
         return try {
             shots++
             val f = File(shotsDir, "s$shots.png")
-            val bmp: Bitmap? = device.takeScreenshot(f)
-            if (bmp != null) "shots/s$shots.png" else null
+            val ok = device.takeScreenshot(f) // يرجع Boolean (نجح/فشل)، مش Bitmap
+            if (ok) "shots/s$shots.png" else null
         } catch (e: Throwable) {
             null
         }
