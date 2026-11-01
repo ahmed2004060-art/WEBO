@@ -288,6 +288,11 @@ class WeboExplorerTest {
                     val txt = urls[steps % urls.size]
                     what = "كتابة «${txt.take(30)}»"
                     el.node.click()
+                    // نفرّغ الحقل أولاً عشان نتجنب خطأ أندرويد المعروف
+                    // (IndexOutOfBoundsException في SuggestionsPopupWindow) اللي بيحصل
+                    // لما نستبدل نص بنص أقصر منه والاقتراحات التلقائية لسه شغالة على المدى القديم.
+                    el.node.text = ""
+                    Thread.sleep(150)
                     el.node.text = txt
                 }
             }

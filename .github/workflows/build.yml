@@ -48,8 +48,11 @@ jobs:
             adb shell pm grant com.webo android.permission.RECORD_AUDIO || true
             adb shell pm grant com.webo android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant com.webo android.permission.ACCESS_COARSE_LOCATION || true
+            adb shell settings put secure spell_checker_enabled 0 || true
             gradle connectedDebugAndroidTest --no-daemon --console=plain || true
             mkdir -p webo-test-report/device-report
+            adb shell ls -la /sdcard/Android/data/com.webo/files/ > webo-test-report/device-report/ls-files.txt 2>&1 || true
+            adb shell ls -la /sdcard/Android/data/com.webo/files/webo-test-report/ >> webo-test-report/device-report/ls-files.txt 2>&1 || true
             adb pull /sdcard/Android/data/com.webo/files/webo-test-report webo-test-report/device-report || true
       - name: Zip test report
         if: always()
