@@ -89,18 +89,18 @@ class DiagnosticLabActivity : Activity() {
         val dark = getSharedPreferences("tdl", MODE_PRIVATE).getBoolean("dark", true)
         val bg = if (dark) Color.rgb(15, 19, 24) else Color.rgb(243, 245, 248)
         val card = if (dark) Color.rgb(30, 37, 46) else Color.WHITE
-        val text = if (dark) Color.rgb(236, 239, 244) else Color.rgb(27, 31, 36)
+        val textColor = if (dark) Color.rgb(236, 239, 244) else Color.rgb(27, 31, 36)
         val muted = if (dark) Color.rgb(147, 160, 177) else Color.rgb(91, 100, 112)
         val accent = if (dark) Color.rgb(91, 155, 255) else Color.rgb(11, 107, 203)
         window.statusBarColor = if (dark) Color.rgb(23, 28, 35) else Color.WHITE
         window.navigationBarColor = window.statusBarColor
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg); layoutDirection = View.LAYOUT_DIRECTION_RTL }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); setBackgroundColor(if (dark) Color.rgb(23, 28, 35) else Color.WHITE) }
-        val heading = TextView(this).apply { text = "مختبر WEBO"; textSize = 19f; setTextColor(text); setTypeface(null, android.graphics.Typeface.BOLD) }
+        val heading = TextView(this).apply { this.text = "مختبر WEBO"; textSize = 19f; setTextColor(textColor); setTypeface(null, android.graphics.Typeface.BOLD) }
         val sub = TextView(this).apply { this.text = "Terminal تفاعلية • فحص وتحكم آلي"; textSize = 11f; setTextColor(muted) }
         val titleColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(heading); addView(sub) }
         header.addView(titleColumn, lp(0, -3, 1f))
-        status = TextView(this).apply { text = "● ONLINE"; textSize = 12f; setTextColor(Color.rgb(64, 190, 112)); setTypeface(null, android.graphics.Typeface.BOLD) }
+        status = TextView(this).apply { this.text = "● ONLINE"; textSize = 12f; setTextColor(Color.rgb(64, 190, 112)); setTypeface(null, android.graphics.Typeface.BOLD) }
         header.addView(status)
         root.addView(header)
 
@@ -122,7 +122,7 @@ class DiagnosticLabActivity : Activity() {
 
         val commandRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         input = EditText(this).apply {
-            hint = "اكتب أمراً مثل: test all"; textSize = 13f; setTextColor(text); setHintTextColor(muted)
+            hint = "اكتب أمراً مثل: test all"; textSize = 13f; setTextColor(textColor); setHintTextColor(muted)
             setSingleLine(true); typeface = android.graphics.Typeface.MONOSPACE; layoutDirection = View.LAYOUT_DIRECTION_LTR; gravity = Gravity.CENTER_VERTICAL or Gravity.START
             imeOptions = EditorInfo.IME_ACTION_SEND
             setOnEditorActionListener { _, action, _ -> if (action == EditorInfo.IME_ACTION_SEND) { submitCommand(); true } else false }
@@ -143,7 +143,7 @@ class DiagnosticLabActivity : Activity() {
         quick2.addView(actionButton("إيقاف", Color.rgb(160, 74, 74)) { command("stop") }, lp(0, dp(42), 1f, 4, 0, 0, 0))
         body.addView(quick2, lp(-3, -3, 0f, 0, 0, 0, 10))
 
-        val previewTitle = TextView(this).apply { this.text = "معاينة الموقع التجريبي"; textSize = 14f; setTextColor(text); setTypeface(null, android.graphics.Typeface.BOLD) }
+        val previewTitle = TextView(this).apply { this.text = "معاينة الموقع التجريبي"; textSize = 14f; setTextColor(textColor); setTypeface(null, android.graphics.Typeface.BOLD) }
         body.addView(previewTitle, lp(-3, -3, 0f, 0, 0, 0, 6))
         previewFrame = FrameLayout(this).apply { setBackgroundColor(Color.WHITE) }
         preview = WebView(this).apply {
