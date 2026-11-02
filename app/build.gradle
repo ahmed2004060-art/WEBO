@@ -3,7 +3,7 @@ plugins {
     id "org.jetbrains.kotlin.android"
 }
 android {
-    namespace "com.webo"
+    namespace "com.webo.lab"
     compileSdk 34
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -13,31 +13,36 @@ android {
         jvmTarget = "17"
     }
     defaultConfig {
-        applicationId "com.webo"
+        applicationId "com.webo.lab"
         minSdk 24
         targetSdk 34
         // versionCode يزيد تلقائياً مع كل بناء في GitHub Actions حتى يُقبل التحديث فوق النسخة المثبتة
-        def runNo = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
-        versionCode 100 + runNo
-        versionName "1.14." + runNo
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        def runNo = (System.getenv("GITHUB_RUN_NUMBER") ?: System.getenv("WEBO_LAB_BUILD_NUMBER") ?: "0").toInteger()
+        versionCode 200 + runNo
+        versionName "2.0." + runNo
     }
-    // مفتاح توقيع ثابت داخل المشروع (يمكن تجاوزه بأسرار GitHub إن وُجدت)
-    def ksFile = System.getenv("KEYSTORE_FILE") ?: "webo.keystore"
-    def ksPass = System.getenv("KEYSTORE_PASSWORD") ?: "fc2db076a5ae2cf4603450be"
+    // مفتاح توقيع مستقل لهذا التطبيق الجديد فقط؛ يُستخدم المفتاح نفسه لكل تحديث لاحق.
+    def labSigning = new Properties()
+    def labSigningFile = rootProject.file("webo-lab-signing.properties")
+    if (labSigningFile.exists()) labSigningFile.withInputStream { labSigning.load(it) }
+    def ksPath = System.getenv("WEBO_LAB_KEYSTORE") ?: labSigning.getProperty("storeFile", "app/webo_lab.keystore")
+    def ksPass = System.getenv("WEBO_LAB_STORE_PASSWORD") ?: labSigning.getProperty("storePassword", "")
+    def ksAlias = System.getenv("WEBO_LAB_KEY_ALIAS") ?: labSigning.getProperty("keyAlias", "webo_lab")
+    def keyPass = System.getenv("WEBO_LAB_KEY_PASSWORD") ?: labSigning.getProperty("keyPassword", ksPass)
     signingConfigs {
-        shared {
-            storeFile file(ksFile)
+        lab {
+            storeFile rootProject.file(ksPath)
             storePassword ksPass
-            keyAlias "webo"
-            keyPassword ksPass
+            keyAlias ksAlias
+            keyPassword keyPass
             enableV1Signing true
             enableV2Signing true
+            enableV3Signing true
         }
     }
     buildTypes {
-        debug { signingConfig signingConfigs.shared }
-        release { signingConfig signingConfigs.shared }
+        debug { signingConfig signingConfigs.lab }
+        release { signingConfig signingConfigs.lab; minifyEnabled false }
     }
 }
 dependencies {
@@ -49,10 +54,4 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.4.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'
     implementation 'androidx.media3:media3-exoplayer-dash:1.4.1'
-
-    // مستكشف الاختبار الآلي (UI Automator) — يحل محل خدمة Accessibility القديمة
-    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
-    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
-    androidTestImplementation 'androidx.test:runner:1.6.2'
-    androidTestImplementation 'androidx.test:rules:1.6.1'
 }

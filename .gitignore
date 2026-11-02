@@ -1,0 +1,9 @@
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+# Keep the dedicated WEBO Lab signing identity out of Git history.
+app/webo_lab.keystore
+webo-lab-signing.properties
