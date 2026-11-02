@@ -1,0 +1,20 @@
+WEBO Lab — حزمة المشروع المستقلة المصححة
+
+ما تم تصحيحه:
+1) تضم الحزمة مشروع WEBO Lab كاملاً، وليست ملف PATCH.
+2) تم تضمين نسخة DiagnosticLabActivity.kt التي تحتوي على إصلاح الخطأ السابق.
+3) تم حصر كود التطبيق في الحزمة com.webo.lab لتتطابق مع namespace في app/build.gradle.
+4) لا يوجد داخل المشروع ملف com/webo/MainActivity.kt القديم الذي تسبب في خطأ Unresolved reference: R عند بناء المستودع المختلط.
+5) ملف التشغيل الرئيسي هو app/src/main/java/com/webo/lab/MainActivity.kt، ويطابق الحزمة com.webo.lab.
+
+التحقق:
+- تم فحص محتويات ZIP وسلامة الأرشيف.
+- تم التحقق من تطابق namespace وpackage واسم Activity في AndroidManifest.xml.
+- لم يتم إنشاء APK أو تنفيذ Gradle build في بيئة إعداد الملف؛ Android SDK وGradle غير متوفرين هنا.
+
+طريقة البناء:
+افتح مجلد المشروع WEBO_Lab_Independent في Android Studio، ثم نفّذ Build APK.
+أو نفّذ من مجلد المشروع: gradle :app:assembleDebug --no-daemon
+
+ملاحظة أمنية:
+يحتوي المشروع على مفتاح التوقيع الخاص به وملف إعداداته. احتفظ بهما سريين ولا تنشرهما.
