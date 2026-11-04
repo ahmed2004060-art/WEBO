@@ -76,7 +76,7 @@ object OfflineDrm {
         mainH.post {
             try {
                 res = f()
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:79 OfflineDrm.onMain", e);
                 err = e
             }
             latch.countDown()
@@ -106,7 +106,7 @@ object OfflineDrm {
                 db(ctx),
                 cache(ctx),
                 DataSource.Factory { http(curHdr).createDataSource() },
-                Executors.newFixedThreadPool(4)
+                diagFixed("drmDownload", 4)
             ).also {
                 it.resumeDownloads()
                 dmI = it
@@ -144,7 +144,7 @@ object OfflineDrm {
                     )
                 }
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:147 OfflineDrm.readAll", e);
         }
         out
     }
@@ -169,6 +169,7 @@ object OfflineDrm {
         val tmp = File(f.parentFile, "index.json.tmp")
         tmp.writeText(a.toString())
         if (!tmp.renameTo(f)) {
+            Diag.i("تخزين", "DRM: فشل renameTo فهرس الملفات المحمية " + tmp.absolutePath + " ← " + f.absolutePath)
             f.writeText(a.toString())
             tmp.delete()
         }
@@ -231,10 +232,10 @@ object OfflineDrm {
                 sec < 86400L -> (sec / 3600).toString() + " ساعة"
                 else -> (sec / 86400).toString() + " يوم"
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:235 OfflineDrm.remainingText", e);
             "غير معروف"
         } finally {
-            try { h?.release() } catch (e: Throwable) {}
+            try { h?.release() } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:238 OfflineDrm.remainingText", e);}
         }
     }
 
@@ -246,16 +247,16 @@ object OfflineDrm {
             h = helper(r.licenseUrl, r.hdr)
             val ks = try {
                 h.renewLicense(dec(r.keySetId))
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:250 OfflineDrm.renew", e);
                 h.downloadLicense(drmFormat(http(r.hdr).createDataSource(), r.url))
             }
             val n = Rec(r.id, r.name, r.url, r.licenseUrl, enc(ks), r.hdr, r.savedAt, r.bytes)
             put(ctx, n)
             return n
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:256 OfflineDrm.renew", e);
             throw Exception("رفضت المنصة تجديد الترخيص أو تعذّر الوصول إليها: " + why(e))
         } finally {
-            try { h?.release() } catch (e: Throwable) {}
+            try { h?.release() } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:259 OfflineDrm.renew", e);}
         }
     }
 
@@ -265,16 +266,16 @@ object OfflineDrm {
         try {
             val dm = manager(ctx)
             onMain { dm.removeDownload(id) }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:269 OfflineDrm.delete", e);
         }
         if (r != null) {
             var h: OfflineLicenseHelper? = null
             try {
                 h = helper(r.licenseUrl, r.hdr)
                 h.releaseLicense(dec(r.keySetId))
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:276 OfflineDrm.delete", e);
             } finally {
-                try { h?.release() } catch (e: Throwable) {}
+                try { h?.release() } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:278 OfflineDrm.delete", e);}
             }
         }
         synchronized(lock) {
@@ -341,28 +342,30 @@ object OfflineDrm {
         paused: () -> Boolean
     ): Rec {
         val id = idOf(url)
+        Diag.i("DRM", "بدء تنزيل محمي دون اتصال | id=" + id + " | منخفض=" + low + " | الرابط " + url)
         val src = http(hdr)
 
         status("جاري طلب الترخيص الرسمي من المنصة للحفظ بدون اتصال...")
         val ds = src.createDataSource()
         val mf = try {
             DashUtil.loadManifest(ds, Uri.parse(url))
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:351 OfflineDrm.download", e);
             throw Exception("تعذر قراءة قائمة التشغيل: " + why(e))
         }
         val lh = helper(licenseUrl, hdr)
         val ks: ByteArray = try {
             lh.downloadLicense(drmFormat(src.createDataSource(), url))
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:357 OfflineDrm.download", e);
             throw Exception("لم تمنح المنصة ترخيصاً للتشغيل دون اتصال (قد لا تسمح بذلك لهذا الفيديو أو لحسابك): " + why(e))
         } finally {
-            try { lh.release() } catch (e: Throwable) {}
+            try { lh.release() } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:360 OfflineDrm.download", e);}
         }
         if (cancelled()) {
+            Diag.i("DRM", "أُلغي التنزيل المحمي قبل بدء الأجزاء | id=" + id + " | الرابط " + url)
             try {
                 val h2 = helper(licenseUrl, hdr)
                 try { h2.releaseLicense(ks) } finally { h2.release() }
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:366 OfflineDrm.download", e);
             }
             throw CancellationException()
         }
@@ -382,11 +385,12 @@ object OfflineDrm {
         var bytes = 0L
         while (true) {
             if (cancelled()) {
-                try { onMain { dm.removeDownload(id) } } catch (e: Throwable) {}
+                Diag.i("DRM", "أُلغي التنزيل المحمي أثناء الأجزاء | id=" + id + " | بايتات=" + bytes + " | الرابط " + url)
+                try { onMain { dm.removeDownload(id) } } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:386 OfflineDrm.download", e);}
                 try {
                     val h3 = helper(licenseUrl, hdr)
                     try { h3.releaseLicense(ks) } finally { h3.release() }
-                } catch (e: Throwable) {
+                } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:390 OfflineDrm.download", e);
                 }
                 throw CancellationException()
             }
@@ -395,14 +399,18 @@ object OfflineDrm {
                 onMain { if (p) dm.pauseDownloads() else dm.resumeDownloads() }
                 wasPaused = p
             }
-            val d = try { dm.downloadIndex.getDownload(id) } catch (e: Throwable) { null }
+            val d = try { dm.downloadIndex.getDownload(id) } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:399 OfflineDrm.download", e); null }
             if (d != null) {
                 bytes = d.bytesDownloaded
                 val pc = d.percentDownloaded
                 progress(if (pc >= 0f) pc.toInt() else 0, bytes)
-                if (d.state == Download.STATE_COMPLETED) break
+                if (d.state == Download.STATE_COMPLETED) {
+                    Diag.i("DRM", "اكتمل التنزيل المحمي | id=" + id + " | بايتات=" + d.bytesDownloaded + " | الرابط " + url)
+                    break
+                }
                 if (d.state == Download.STATE_FAILED) {
-                    try { onMain { dm.removeDownload(id) } } catch (e: Throwable) {}
+                    Diag.i("DRM", "فشل تنزيل الأجزاء المشفّرة | id=" + id + " | failureReason=" + d.failureReason + " | stopReason=" + d.stopReason + " | بايتات=" + d.bytesDownloaded + " | الرابط " + url)
+                    try { onMain { dm.removeDownload(id) } } catch (e: Throwable) { Diag.swallow("OfflineDrm.kt:407 OfflineDrm.download", e);}
                     throw Exception("فشل تنزيل الأجزاء المشفّرة")
                 }
             }

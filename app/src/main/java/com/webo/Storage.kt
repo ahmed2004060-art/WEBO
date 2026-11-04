@@ -89,7 +89,7 @@ object FileUtil {
                         if (!n.isNullOrBlank()) return n
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("Storage.kt:92 FileUtil.nameOf", e);
             }
         }
         return u.lastPathSegment?.substringAfterLast('/') ?: "ملف"
@@ -241,15 +241,15 @@ class ViewerActivity : Activity() {
         when {
             ext in pageExt -> {
                 if (u.scheme == "file") web.loadUrl(u.toString())
-                else Thread {
-                    val html = try { read(u, 30L * 1024 * 1024) } catch (e: Throwable) { "" }
+                else diagThread("Storage:244") {
+                    val html = try { read(u, 30L * 1024 * 1024) } catch (e: Throwable) { Diag.swallow("Storage.kt:245 ViewerActivity.show", e); "" }
                     ui.post {
                         if (html.isEmpty()) fail("تعذر قراءة الملف") else web.loadDataWithBaseURL(u.toString(), html, "text/html", "utf-8", null)
                     }
                 }.start()
             }
-            ext in textExt -> Thread {
-                val t = try { read(u, 4L * 1024 * 1024) } catch (e: Throwable) { "" }
+            ext in textExt -> diagThread("Storage:251") {
+                val t = try { read(u, 4L * 1024 * 1024) } catch (e: Throwable) { Diag.swallow("Storage.kt:252 ViewerActivity.show", e); "" }
                 val esc = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 val html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>" +
                     "<body style='margin:0;padding:12px'><pre style='white-space:pre-wrap;word-break:break-all;font-size:13px'>" + esc + "</pre></body></html>"
@@ -268,12 +268,12 @@ class ViewerActivity : Activity() {
 
     private fun saveCopy() {
         val u = src ?: return
-        Thread {
+        diagThread("Storage:271") {
             val r = try {
                 val st: InputStream = if (u.scheme == "file") File(u.path ?: "").inputStream() else contentResolver.openInputStream(u)!!
                 FileUtil.saveToDownloads(this, st, name, FileUtil.mimeOf(name))
                 "تم حفظ نسخة في مجلد التحميلات"
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("Storage.kt:276 ViewerActivity.saveCopy", e);
                 "تعذر الحفظ: " + (e.message ?: "")
             }
             ui.post { DlgStyle.toast(this, r, true) }
@@ -283,22 +283,22 @@ class ViewerActivity : Activity() {
     private fun openOther() {
         val u = src ?: return
         if (u.scheme != "file") {
-            try { FileUtil.open(this, u, FileUtil.mimeOf(name)) } catch (e: Throwable) { DlgStyle.toast(this, "لا يوجد تطبيق يفتح هذا الملف", false) }
+            try { FileUtil.open(this, u, FileUtil.mimeOf(name)) } catch (e: Throwable) { Diag.swallow("Storage.kt:286 ViewerActivity.openOther", e); DlgStyle.toast(this, "لا يوجد تطبيق يفتح هذا الملف", false) }
             return
         }
         // ملفات التطبيق الداخلية: نحفظ نسخة في التحميلات ثم نفتحها
-        Thread {
+        diagThread("Storage:290") {
             try {
                 val r = FileUtil.saveToDownloads(this, File(u.path ?: "").inputStream(), name, FileUtil.mimeOf(name))
                 ui.post {
                     try {
                         val o = if (r.startsWith("content:")) Uri.parse(r) else Uri.fromFile(File(r))
                         FileUtil.open(this, o, FileUtil.mimeOf(name))
-                    } catch (e: Throwable) {
+                    } catch (e: Throwable) { Diag.swallow("Storage.kt:297 ViewerActivity.openOther", e);
                         DlgStyle.toast(this, "لا يوجد تطبيق يفتح هذا الملف", false)
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("Storage.kt:301 ViewerActivity.openOther", e);
                 ui.post { DlgStyle.toast(this, "تعذر الفتح: " + (e.message ?: ""), true) }
             }
         }.start()
@@ -309,7 +309,7 @@ class ViewerActivity : Activity() {
     }
 
     override fun onDestroy() {
-        try { web.destroy() } catch (e: Throwable) {}
+        try { web.destroy() } catch (e: Throwable) { Diag.swallow("Storage.kt:312 ViewerActivity.onDestroy", e);}
         super.onDestroy()
     }
 }
@@ -456,7 +456,7 @@ class StorageActivity : Activity() {
             val sz = tv("جاري الحساب...", 12f, p.accent)
             c.addView(sz, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 4, 0, 0))
             c.addView(pill("استعراض", true) { rootDir = f; showDir(f) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
-            Thread {
+            diagThread("Storage:459") {
                 val i = dirInfo(f)
                 ui.post { sz.text = i.first.toString() + " ملف  •  " + FileUtil.fmtSize(i.second) }
             }.start()
@@ -468,7 +468,7 @@ class StorageActivity : Activity() {
         head.text = "التحميلات المحفوظة"
         list.removeAllViews()
         list.addView(tv("جاري القراءة...", 13f, p.muted))
-        Thread {
+        diagThread("Storage:471") {
             val items = ArrayList<Item>()
             try {
                 if (Build.VERSION.SDK_INT >= 29) {
@@ -489,7 +489,7 @@ class StorageActivity : Activity() {
                         items.add(Item(it.name, it.length(), it.lastModified(), it, null))
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("Storage.kt:492 StorageActivity.showDownloads", e);
             }
             ui.post {
                 if (mode != 1) return@post
@@ -559,11 +559,11 @@ class StorageActivity : Activity() {
 
     private fun exportItem(item: Item) {
         val f = item.file ?: return
-        Thread {
+        diagThread("Storage:562") {
             val r = try {
                 FileUtil.saveToDownloads(this, f.inputStream(), item.name, FileUtil.mimeOf(item.name))
                 "تم حفظ نسخة من «" + item.name + "» في مجلد التحميلات"
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("Storage.kt:566 StorageActivity.exportItem", e);
                 "تعذر الحفظ: " + (e.message ?: "")
             }
             ui.post { DlgStyle.toast(this, r, true) }
@@ -578,7 +578,7 @@ class StorageActivity : Activity() {
             i.putExtra(Intent.EXTRA_STREAM, u)
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             startActivity(Intent.createChooser(i, "مشاركة"))
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("Storage.kt:581 StorageActivity.shareItem", e);
             DlgStyle.toast(this, "تعذرت المشاركة", false)
         }
     }
@@ -588,7 +588,7 @@ class StorageActivity : Activity() {
             .setPositiveButton("حذف") { _, _ ->
                 try {
                     if (item.uri != null) contentResolver.delete(item.uri, null, null) else item.file?.delete()
-                } catch (e: Throwable) {
+                } catch (e: Throwable) { Diag.swallow("Storage.kt:591 StorageActivity.deleteItem", e);
                     DlgStyle.toast(this, "تعذر الحذف", false)
                 }
                 refresh()

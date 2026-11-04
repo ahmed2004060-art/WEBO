@@ -12,8 +12,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <uses-feature android:name="android.hardware.location" android:required="false"/>
     <application
-        android:name=".WeBoLabApplication"
-        android:label="WEBO Lab"
+        android:label="WEBO"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:largeHeap="true"
@@ -42,8 +41,6 @@
         </activity>
         <activity android:name=".VideoPlayerActivity" android:exported="false"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|fontScale|locale|layoutDirection"/>
-        <activity android:name=".DiagnosticLabActivity" android:exported="false"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|fontScale|locale|layoutDirection"/>
     </application>
 </manifest>

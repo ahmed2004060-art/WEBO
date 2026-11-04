@@ -89,10 +89,11 @@ object TaskStore {
             val tmp = File(f.parentFile, r.id + ".tmp")
             tmp.writeText(o.toString())
             if (!tmp.renameTo(f)) {
+                Diag.i("تخزين", "TaskStore: فشل renameTo " + tmp.absolutePath + " ← " + f.absolutePath)
                 f.writeText(o.toString())
                 tmp.delete()
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("TaskStore.kt:96 TaskStore.save", e);
         }
     }
 
@@ -100,13 +101,13 @@ object TaskStore {
         try {
             val f = tf(ctx, id)
             f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 80, it) }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("TaskStore.kt:104 TaskStore.saveThumb", e);
         }
     }
 
     fun delete(ctx: Context, id: String) = synchronized(lock) {
-        try { jf(ctx, id).delete() } catch (e: Throwable) {}
-        try { tf(ctx, id).delete() } catch (e: Throwable) {}
+        try { jf(ctx, id).delete() } catch (e: Throwable) { Diag.swallow("TaskStore.kt:109 TaskStore.delete", e);}
+        try { tf(ctx, id).delete() } catch (e: Throwable) { Diag.swallow("TaskStore.kt:110 TaskStore.delete", e);}
     }
 
     private fun optS(o: JSONObject, k: String): String? = if (o.isNull(k)) null else o.optString(k).ifEmpty { null }
@@ -131,17 +132,17 @@ object TaskStore {
                         optS(o, "fname"), optS(o, "mime"), o.optLong("created"), o.optLong("updated"), o.optString("pageUrl")
                     )
                     out.add(r)
-                } catch (e: Throwable) {
-                    try { f.delete() } catch (x: Throwable) {}
+                } catch (e: Throwable) { Diag.swallow("TaskStore.kt:135 TaskStore.load", e);
+                    try { f.delete() } catch (x: Throwable) { Diag.swallow("TaskStore.kt:136 TaskStore.load", x);}
                 }
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("TaskStore.kt:139 TaskStore.load", e);
         }
         for (r in out) {
             try {
                 val t = tf(ctx, r.id)
                 if (t.exists()) r.thumbBmp = BitmapFactory.decodeFile(t.absolutePath)
-            } catch (e: Throwable) {
+            } catch (e: Throwable) { Diag.swallow("TaskStore.kt:145 TaskStore.load", e);
             }
         }
         out.sortBy { it.created }

@@ -28,10 +28,9 @@ class StyledBuilder(private val ctx: Context) : AlertDialog.Builder(ctx) {
     override fun show(): AlertDialog {
         val d = create()
         d.show()
-        try { ScanHook.dialogs.add(d) } catch (e: Throwable) {}
         try {
             DlgStyle.style(ctx, d)
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("DialogStyle.kt:33 StyledBuilder.show", e);
         }
         return d
     }
@@ -97,7 +96,7 @@ object DlgStyle {
         var lv: ListView? = null
         try {
             lv = d.listView
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("DialogStyle.kt:99 DlgStyle.style", e);
         }
         if (lv != null) {
             lv.divider = ColorDrawable(p.line)
@@ -231,7 +230,6 @@ object DlgStyle {
 
     // رسالة Toast بستايل التطبيق: بطاقة بإطار بلون التأكيد. تعود للرسالة العادية إن تعذر العرض
     fun toast(ctx: Context, msg: String, long: Boolean = false) {
-        try { ScanHook.toastSink?.invoke(msg) } catch (e: Throwable) {}
         try {
             val p = Pal(ctx)
             val t = TextView(ctx)
@@ -248,10 +246,10 @@ object DlgStyle {
             ts.duration = if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
             ts.setGravity(Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, 0, dp(ctx, 90))
             ts.show()
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("DialogStyle.kt:249 DlgStyle.toast", e);
             try {
                 Toast.makeText(ctx, msg, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
-            } catch (e2: Throwable) {
+            } catch (e2: Throwable) { Diag.swallow("DialogStyle.kt:252 DlgStyle.toast", e2);
             }
         }
     }

@@ -1,0 +1,47 @@
+قائمة التعديلات على النسخة العاشرة (أساسها النسخة التاسعة)
+
+التعديلات الأخيرة:
+- أُلغي حد أربعين خطأ في الثانية لأخطاء الصفحات (ملف المراقبة): تُسجَّل كلها.
+- أُلغي حد عشرة آلاف حدث قبل بدء المسجّل (ملف المسجّل): لا يضيع شيء.
+- كلمة "مفقودة=N" بالأحمر في نتيجة الفحص الذاتي (DiagUi.kt)، والفحص يبقى أخضر.
+
+الملفات الجديدة:
+  Diag.kt
+  DiagUi.kt
+  DiagWatch.kt
+  SelfCheck.kt
+
+الملفات المعدّلة (الاسم | عدد catch في الأصل | استدعاءات Diag المضافة):
+  Alerts.kt | 4 | 5
+  ButtonSizes.kt | 2 | 2
+  Candidates.kt | 23 | 25
+  DashDownload.kt | 10 | 13
+  DialogStyle.kt | 4 | 4
+  DownloadsUi.kt | 4 | 4
+  FilesIo.kt | 1 | 2
+  HistoryBookmarks.kt | 3 | 3
+  HlsDownload.kt | 18 | 21
+  JsInjection.kt | 1 | 1
+  JsScripts.kt | 50 | 0
+  LiveAndPlayback.kt | 7 | 7
+  MainActivity.kt | 13 | 19
+  Network.kt | 14 | 20
+  OfflineDrm.kt | 18 | 24
+  PageMedia.kt | 7 | 5
+  PlayerCore.kt | 16 | 18
+  ResponseCache.kt | 6 | 6
+  SettingsPages.kt | 1 | 1
+  SpeedAndLinks.kt | 3 | 3
+  StartPage.kt | 14 | 14
+  Storage.kt | 12 | 12
+  TabSwitcher.kt | 7 | 7
+  Tabs.kt | 4 | 4
+  TaskPersistence.kt | 5 | 5
+  TaskStore.kt | 8 | 9
+  Thumbnails.kt | 14 | 13
+  ToolsUi.kt | 4 | 4
+  UiKit.kt | 2 | 2
+  UserScripts.kt | 5 | 3
+  WebClient.kt | 16 | 18
+
+إجمالي catch في الملفات المعدّلة: 296

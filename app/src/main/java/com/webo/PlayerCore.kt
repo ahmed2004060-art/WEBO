@@ -93,9 +93,9 @@ object PlayerCore {
                     String(b, 0, n, Charsets.UTF_8)
                 }
             } finally {
-                try { c.disconnect() } catch (e: Throwable) {}
+                try { c.disconnect() } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:96 PlayerCore.fetchText", e);}
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:98 PlayerCore.fetchText", e);
             null
         }
     }
@@ -132,7 +132,7 @@ object PlayerCore {
                         try {
                             val vu = URL(URL(url), nx.trim()).toString()
                             fetchText(vu, hdr)?.let { lines.addAll(it.lines()) }
-                        } catch (e: Throwable) {
+                        } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:135 PlayerCore.probeHls", e);
                         }
                     }
                     break
@@ -174,7 +174,7 @@ class VideoPlayerActivity : Activity() {
     }
 
     private val ui = Handler(Looper.getMainLooper())
-    private val pool = Executors.newSingleThreadExecutor()
+    private val pool = diagSingle("playerPool")
     private var src = ""
     private var isUri = false
     private var remote = false
@@ -393,7 +393,7 @@ class VideoPlayerActivity : Activity() {
     }
 
     private fun closeDlg() {
-        dlgLayer?.let { try { rootV.removeView(it) } catch (e: Throwable) {} }
+        dlgLayer?.let { try { rootV.removeView(it) } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:396 VideoPlayerActivity.closeDlg", e);} }
         dlgLayer = null
     }
 
@@ -627,7 +627,7 @@ class VideoPlayerActivity : Activity() {
             pool.execute {
                 val p = try {
                     PlayerCore.probe(src, h, kindHint)
-                } catch (e: Throwable) {
+                } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:630 VideoPlayerActivity.onCreate", e);
                     PlayerCore.Probe(PlayerCore.kindOf(src, kindHint), 2, false, null, "")
                 }
                 ui.post { if (!destroyed) begin(p) }
@@ -660,13 +660,13 @@ class VideoPlayerActivity : Activity() {
         val sigIn = lastSig
         try {
             pool.execute {
-                val r = try { hook(key, sigIn) } catch (e: Throwable) { null }
+                val r = try { hook(key, sigIn) } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:663 VideoPlayerActivity.liveStep", e); null }
                 ui.post {
                     liveBusy = false
                     if (!destroyed && r != null) applyLive(r)
                 }
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:669 VideoPlayerActivity.liveStep", e);
             liveBusy = false
         }
     }
@@ -739,7 +739,7 @@ class VideoPlayerActivity : Activity() {
     }
 
     private fun toast(s: String) {
-        try { DlgStyle.toast(this, s, false) } catch (e: Throwable) {}
+        try { DlgStyle.toast(this, s, false) } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:742 VideoPlayerActivity.toast", e);}
     }
 
     private fun fmt(ms: Long): String {
@@ -799,7 +799,7 @@ class VideoPlayerActivity : Activity() {
                 e.trackSelectionParameters = b.build()
                 qSel = i
                 if (i == 0) refreshQ() else qBtn.text = "⚙ " + titles[i]
-            } catch (x: Throwable) {
+            } catch (x: Throwable) { Diag.swallow("PlayerCore.kt:802 VideoPlayerActivity.chooseQuality", x);
                 toast("تعذر تغيير الجودة")
             }
         }
@@ -816,6 +816,7 @@ class VideoPlayerActivity : Activity() {
 
     // يُستدعى عند فشل المحرك: الحماية تُشرح، وغيرها يظهر له خطأ واضح
     private fun onEngineError(which: Int, code: Int) {
+        Diag.i("مشغّل", "onEngineError engine=" + which + " code=" + code + " | الحالي=" + engine + " | live=" + live + " | destroyed=" + destroyed)
         if (destroyed || which != engine) return
         if (live && !(which == PlayerCore.ENGINE_MEDIA3 && code in 6000..6999)) {
             // خطأ أثناء التنزيل غالباً سببه نفاد الجزء المحمّل: ننتظر المزيد بدل تغيير المحرك
@@ -835,7 +836,7 @@ class VideoPlayerActivity : Activity() {
                     val ok = try {
                         offRec = OfflineDrm.renew(this, id)
                         null
-                    } catch (e: Throwable) {
+                    } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:839 VideoPlayerActivity.onEngineError", e);
                         e.message ?: "تعذر التجديد"
                     }
                     ui.post {
@@ -913,6 +914,7 @@ class VideoPlayerActivity : Activity() {
 
             player.addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
+                    Diag.e("مشغّل", "خطأ ExoPlayer: " + error.errorCodeName + " (" + error.errorCode + ") | engine=" + engine + " | live=" + live, error)
                     onEngineError(PlayerCore.ENGINE_MEDIA3, error.errorCode)
                 }
 
@@ -948,7 +950,7 @@ class VideoPlayerActivity : Activity() {
             resumeAt = 0
             player.prepare()
             player.playWhenReady = true
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:953 VideoPlayerActivity.startExo", e);
             onEngineError(PlayerCore.ENGINE_MEDIA3, 0)
         }
     }
@@ -970,7 +972,7 @@ class VideoPlayerActivity : Activity() {
     }
 
     private fun releaseExo() {
-        try { exo?.release() } catch (e: Throwable) {}
+        try { exo?.release() } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:975 VideoPlayerActivity.releaseExo", e);}
         exo = null
         surface = null
         vsW = 0
@@ -993,7 +995,7 @@ class VideoPlayerActivity : Activity() {
     private fun seekTo(ms: Long) {
         try {
             exo?.seekTo(ms)
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:998 VideoPlayerActivity.seekTo", e);
         }
     }
 
@@ -1006,7 +1008,7 @@ class VideoPlayerActivity : Activity() {
                 pos = e.currentPosition
                 dur = e.duration
             }
-        } catch (e: Throwable) {
+        } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:1011 VideoPlayerActivity.tick", e);
         }
         if (dur < 0) dur = 0
         if (pos < 0) pos = 0
@@ -1023,7 +1025,7 @@ class VideoPlayerActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        try { exo?.pause() } catch (e: Throwable) {}
+        try { exo?.pause() } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:1028 VideoPlayerActivity.onPause", e);}
     }
 
     override fun onDestroy() {
@@ -1031,7 +1033,7 @@ class VideoPlayerActivity : Activity() {
         ui.removeCallbacksAndMessages(null)
         releaseExo()
         pool.shutdownNow()
-        for (f in liveFiles) try { File(f).delete() } catch (e: Throwable) {}
+        for (f in liveFiles) try { File(f).delete() } catch (e: Throwable) { Diag.swallow("PlayerCore.kt:1036 VideoPlayerActivity.onDestroy", e);}
         super.onDestroy()
     }
 }
