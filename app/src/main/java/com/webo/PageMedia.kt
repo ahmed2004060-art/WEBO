@@ -13,6 +13,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import com.webo.MainActivity.Tab
 import java.io.File
 import java.net.URL
 import java.util.concurrent.atomic.AtomicInteger
