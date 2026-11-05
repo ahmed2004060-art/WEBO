@@ -176,6 +176,7 @@ internal fun MainActivity.makeWeb(): WebView {
             }
             if (rcWanted(r, low, accept)) {
                 val rs = rcServe(u, h)
+                ui.post { val t0 = hasTab(v); if (t0 != null) imagesChanged(t0) }
                 if (rs != null) return rs
             }
             // نوع المحتوى mpegurl: فحص رأس الرد للطلبات التي لا تبدو ملفات ثابتة
@@ -241,7 +242,8 @@ internal fun MainActivity.makeWeb(): WebView {
             val nu = url.substringBefore('#')
             if (!isReload && t.lastUrl.isNotEmpty() && nu != t.lastUrl) {
                 t.lastUrl = nu
-                if (!t.scanning) pruneTab(t)
+                pruneTab(t)
+                if (cur === t) captureImagesAuto(t)
             } else if (t.lastUrl.isEmpty()) {
                 t.lastUrl = nu
             }
@@ -261,6 +263,7 @@ internal fun MainActivity.makeWeb(): WebView {
                 v.settings.cacheMode = baseCache()
             }
             if (prefs().getBoolean("overlay", true)) v.evaluateJavascript(overlayJs(), null)
+            if (cur === t) captureImagesAuto(t)
             runScripts(v, url)
         }
 

@@ -135,7 +135,48 @@ internal fun MainActivity.showImagesSection() {
         return
     }
     val page = t.web.url ?: ""
-    toast("جاري جمع صور الصفحة...")
+    val pre = t.capImgs
+    // الصور ملتقطة تلقائياً: الزر يعرضها فقط
+    if (pre != null && pre.isNotEmpty()) openImagesDialog(pre, page)
+    else toast("لم أجد صوراً في هذه الصفحة")
+}
+
+// يبدأ التقاط صور الصفحة التي أقف فيها تلقائياً عند فتحها، ويحذفها pruneTab عند الخروج
+internal fun MainActivity.captureImagesAuto(t: Tab) {
+    val key = t.lastUrl
+    if (t.capSched == key) return
+    t.capSched = key
+    collectMerge(t, key)
+}
+
+// ظهور صورة جديدة في الصفحة التي أقف فيها: يُحدَّث الالتقاط
+internal fun MainActivity.imagesChanged(t: Tab) {
+    if (cur !== t || t.capSched.isEmpty() || t.capSched != t.lastUrl) return
+    val key = t.lastUrl
+    t.capRun?.let { ui.removeCallbacks(it) }
+    val run = Runnable { collectMerge(t, key) }
+    t.capRun = run
+    ui.postDelayed(run, 1000L)
+}
+
+internal fun MainActivity.collectMerge(t: Tab, key: String) {
+    if (!tabs.contains(t) || cur !== t || t.lastUrl != key || t.capSched != key) return
+    collectImages(t) { cap ->
+        if (cap != null && cap.isNotEmpty() && tabs.contains(t) && cur === t && t.lastUrl == key && t.capSched == key) {
+            val old = t.capImgs
+            if (old == null) t.capImgs = cap
+            else {
+                val seen = HashSet<String>()
+                val m = ArrayList<GImg>()
+                for (g in old) if (seen.add(g.u)) m.add(g)
+                for (g in cap) if (seen.add(g.u)) m.add(g)
+                t.capImgs = m
+            }
+        }
+    }
+}
+
+internal fun MainActivity.collectImages(t: Tab, done: (List<GImg>?) -> Unit) {
     val js = "(function(){try{var o=[],s={};function add(u,w,h){if(!u||s[u])return;if(u.indexOf('http')!==0)return;s[u]=1;o.push([u,w|0,h|0]);}" +
         "var im=document.images;for(var i=0;i<im.length;i++){var e=im[i];var u=e.currentSrc||e.src||e.getAttribute('data-src')||e.getAttribute('data-original')||'';" +
         "if(u&&u.indexOf('http')!==0){try{u=new URL(u,location.href).href}catch(x){try{TDL.dg('PageMedia.kt:141 showImagesSection.js '+(x&&x.stack||x))}catch(_q){}}}" +
@@ -155,18 +196,16 @@ internal fun MainActivity.showImagesSection() {
                         list.add(GImg(x.getString(0), x.getInt(1), x.getInt(2)))
                     }
                 }
-            } catch (e: Throwable) { Diag.swallow("PageMedia.kt:158 showImagesSection", e);
+            } catch (e: Throwable) { Diag.swallow("PageMedia.kt collectImages", e);
             }
             galPool.execute {
                 val cap = ArrayList<GImg>()
                 for (g in list) if (rcLocal(g.u) != null) cap.add(g)
-                ui.post {
-                    if (cap.isEmpty()) toast("لم أجد صوراً في هذه الصفحة") else openImagesDialog(cap, page)
-                }
+                ui.post { done(cap) }
             }
         }
-    } catch (e: Throwable) { Diag.swallow("PageMedia.kt:168 showImagesSection", e);
-        toast("تعذر قراءة صور الصفحة")
+    } catch (e: Throwable) { Diag.swallow("PageMedia.kt collectImages", e);
+        done(null)
     }
 }
 

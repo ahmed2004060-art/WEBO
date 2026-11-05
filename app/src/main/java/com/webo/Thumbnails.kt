@@ -26,11 +26,8 @@ internal fun MainActivity.setThumb(r: Row, b: android.graphics.Bitmap?) {
     iv.setImageBitmap(b)
     r.thumbSet = true
     if (r.url.isNotEmpty()) synchronized(videoThumbs) { videoThumbs[r.url] = b }
-    if (!r.quiet && r.id.isNotEmpty()) {
-        val id = r.id
-        try { taskIo.execute { TaskStore.saveThumb(this, id, b) } } catch (e: Throwable) { Diag.swallow("Thumbnails.kt:31 setThumb", e);}
-        saveTask(r)
-    }
+    r.thumbSaved = false
+    if (!r.quiet && r.id.isNotEmpty()) saveTask(r)
 }
 
 internal fun MainActivity.readLimited(s: java.io.InputStream, max: Int, stop: () -> Boolean = { false }): ByteArray {

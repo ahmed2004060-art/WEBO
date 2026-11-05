@@ -196,6 +196,9 @@ class MainActivity : Activity() {
         var startBack = false
         var popup = false
         var scanning = false
+        internal var capImgs: List<GImg>? = null
+        internal var capSched: String = ""
+        internal var capRun: Runnable? = null
         var icon: android.graphics.Bitmap? = null
         var thumb: android.graphics.Bitmap? = null
     }
@@ -560,6 +563,7 @@ class MainActivity : Activity() {
     // ---------- حفظ مهام التنزيل واستعادتها (كل مهمة مستقلة) ----------
 
     internal val taskIo = diagSingle("taskIo")
+    internal var pendingRecs: List<TaskRec>? = null
 
     // صورة كل فيديو تُحفظ مرة واحدة بعد جلبها، فإذا عاد الفيديو للالتقاط (بعد التنقل بين الصفحات) تُستخدم المحفوظة ولا تُطلب من جديد
     internal val videoThumbs = object : LinkedHashMap<String, android.graphics.Bitmap>(16, 0.75f, true) {

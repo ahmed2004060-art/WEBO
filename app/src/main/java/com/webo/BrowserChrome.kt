@@ -141,6 +141,7 @@ internal fun MainActivity.showPage(i: Int) {
         navItems[k].first.setColorFilter(c)
         navItems[k].second.setTextColor(c)
     }
+    if (i == 1) restoreSavedNow()
     updateCounts()
 }
 

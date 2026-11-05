@@ -56,6 +56,7 @@ internal fun MainActivity.backInTab(t: Tab): Boolean {
     // لا توجد صفحة سابقة: نعرض واجهة التطبيق بدل الخروج
     t.start = true
     t.startBack = false
+    pruneTab(t)
     hideKb()
     updateStart()
     return true
@@ -104,6 +105,7 @@ internal fun MainActivity.newTab(url: String, popup: Boolean = false) {
 
 internal fun MainActivity.removeTab(t: Tab) {
     snapshot(t)
+    pruneTab(t)
     tabs.remove(t)
     container.removeView(t.web)
     tabsRow.removeView(t.chip)
@@ -155,7 +157,7 @@ internal fun MainActivity.relabel() {
 
 internal fun MainActivity.switchTo(t: Tab) {
     val old = cur
-    if (old != null && old !== t && tabs.contains(old)) swCapture(old)
+    if (old != null && old !== t && tabs.contains(old)) { swCapture(old); pruneTab(old) }
     cur = t
     for (x in tabs) {
         x.web.visibility = if (x === t) View.VISIBLE else View.GONE
@@ -172,6 +174,8 @@ internal fun MainActivity.switchTo(t: Tab) {
     updateStart()
     updateLoadUi()
     updateCounts()
+    // الصفحة التي صرت فيها: يبدأ الالتقاط عليها الآن
+    if (old !== t && !t.start && !t.web.url.isNullOrEmpty()) ui.post { if (cur === t) { w2rescan(); captureImagesAuto(t) } }
 }
 
 internal fun MainActivity.fix(u: String): String {

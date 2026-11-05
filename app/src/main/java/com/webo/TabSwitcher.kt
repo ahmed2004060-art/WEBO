@@ -568,6 +568,8 @@ internal fun MainActivity.swTouch(t: Tab, i: Int, cell: View, card: View): View.
 
 
 internal fun MainActivity.swDetach(t: Tab) {
+    // الخروج من التبويب: يُحذف كل ما التُقط منه (صور وروابط فيديو ومعاينات) قبل فصله
+    pruneTab(t)
     tabs.remove(t)
     try { container.removeView(t.web) } catch (e: Throwable) { Diag.swallow("TabSwitcher.kt:572 swDetach", e);}
     try { tabsRow.removeView(t.chip) } catch (e: Throwable) { Diag.swallow("TabSwitcher.kt:573 swDetach", e);}

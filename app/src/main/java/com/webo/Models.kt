@@ -53,6 +53,7 @@ internal class Row(val bar: ProgressBar, val msg: TextView, val btn: View, val p
     // الصورة المصغّرة وحالة الحماية والصيغة المعروضة بجانب العنصر
     var thumb: ImageView? = null
     var thumbSet = false
+    var thumbSaved = false
     @Volatile var thumbBusy = false
     @Volatile var thumbStop = false
     var thumbRetry: (() -> Unit)? = null

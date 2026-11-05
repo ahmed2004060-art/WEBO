@@ -19,6 +19,8 @@ internal fun MainActivity.engineFor(prot: Int, fmt: String): Int {
 // يحفظ حالة المهمة الآن (يُستدعى من الخيط الرئيسي)
 internal fun MainActivity.saveTask(r: Row) {
     if (r.quiet || r.removed || r.id.isEmpty()) return
+    // الملتقط الذي لم يُبدأ تحميله لا يُحفظ أبداً
+    if (isCapOnly(r)) return
     val c = cands[r.url] ?: return
     val m = c.meta
     val mj = if (m != null) TaskStore.metaToJson(m.vod, m.dur, m.size, m.sizeEst, m.res, m.kbps, m.subs, m.conf, m.why) else null
@@ -29,6 +31,14 @@ internal fun MainActivity.saveTask(r: Row) {
         r.watch?.visibility == View.VISIBLE, foundName[r.url], foundMime[r.url], r.created, System.currentTimeMillis(), r.pageUrl
     )
     try { taskIo.execute { TaskStore.save(this, rec) } } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt:31 saveTask", e);}
+    if (r.thumbSet && !r.thumbSaved) {
+        val b = synchronized(videoThumbs) { videoThumbs[r.url] }
+        if (b != null) {
+            r.thumbSaved = true
+            val id = r.id
+            try { taskIo.execute { TaskStore.saveThumb(this, id, b) } } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt saveTask thumb", e);}
+        }
+    }
 }
 
 internal fun MainActivity.forgetTask(id: String) {
@@ -48,9 +58,21 @@ internal fun MainActivity.metaFromJson(o: org.json.JSONObject?): Meta? {
 // يقرأ المهام المحفوظة في الخلفية ثم يعيدها إلى القائمة بحالاتها
 internal fun MainActivity.restoreTasks() {
     diagThread("TaskPersistence:50") {
-        val recs = try { TaskStore.load(this) } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt:51 restoreTasks", e); emptyList<TaskRec>() }
-        ui.post { for (rec in recs) try { restoreOne(rec) } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt:52 restoreTasks", e); logErr("استعادة", "تعذر استعادة مهمة: " + (e.message ?: e.javaClass.simpleName), e) } }
+        val all = try { TaskStore.load(this) } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt:51 restoreTasks", e); emptyList<TaskRec>() }
+        // الملتقط القديم (غير المبدوء تحميله) يُحذف ولا يُستعاد؛ تُستعاد فقط التنزيلات المستأنفة والمكتملة
+        for (x in all) if (x.state == 0) TaskStore.delete(this, x.id)
+        val recs = all.filter { it.state != 0 }
+        ui.post { pendingRecs = recs; if (page == 1) restoreSavedNow() }
     }.start()
+}
+
+// تُستدعى عند فتح صفحة التنزيلات فقط
+internal fun MainActivity.restoreSavedNow() {
+    val recs = pendingRecs ?: return
+    pendingRecs = null
+    for (rec in recs) try {
+        restoreOne(rec)
+    } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt restoreSavedNow", e); logErr("استعادة", "تعذر استعادة مهمة: " + (e.message ?: e.javaClass.simpleName), e) }
 }
 
 internal fun MainActivity.finalExists(loc: String): Boolean = try {
@@ -71,7 +93,7 @@ internal fun MainActivity.restoreOne(rec: TaskRec) {
     val r = c.rw
     r.quiet = true
     r.created = rec.created
-    rec.thumbBmp?.let { setThumb(r, it) }
+    rec.thumbBmp?.let { setThumb(r, it); r.thumbSaved = true }
     if (rec.kindFmt.isNotEmpty()) setKind(r, rec.kindProt, rec.kindFmt)
     r.engine = if (rec.engine != 0) rec.engine else if (rec.kindFmt.isNotEmpty()) engineFor(rec.kindProt, rec.kindFmt) else 0
     var st = rec.state
@@ -90,17 +112,15 @@ internal fun MainActivity.restoreOne(rec: TaskRec) {
                 msg = "الملف المحفوظ لم يعد موجوداً. اضغط «تحميل» لإعادة التنزيل."
             }
         }
-        1, 2 -> {
-            st = 4
-            msg = "توقف التحميل لأن التطبيق أُغلق. اضغط «تحميل» للمتابعة من حيث توقف."
-        }
+        // المتوقف مؤقتاً والمستأنف: تبقى حالتهما ورسالتهما كما حُفظتا دون إعادة تنشيط
+        1, 2 -> r.started = true
     }
     if (rec.protectedStream && st == 4) {
         r.protectedStream = true
         r.srcUrl = u
         r.srcHdr = rec.hdr
     }
-    if (st == 3 || st == 4) {
+    if (st == 1 || st == 2 || st == 3 || st == 4) {
         r.msg.text = msg
         if (rec.total > 0) {
             r.bar.max = rec.total

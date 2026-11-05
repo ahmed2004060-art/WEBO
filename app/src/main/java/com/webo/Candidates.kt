@@ -54,13 +54,26 @@ internal fun MainActivity.bestFor(t: Tab?): Cand? {
     return best
 }
 
-// الانتقال لصفحة أخرى: نمسح روابط هذا التبويب التي لم يبدأ تحميلها حتى لا تختلط فيديوهات الصفحات
+// ملتقط فقط: لم يُضغط عليه تحميل (ليس مستأنفاً ولا مكتملاً)
+internal fun isCapOnly(r: Row): Boolean = r.state == 0 && !r.started
+
+// الخروج من الصفحة أو الموقع أو التبويب: نحذف كل ما التُقط منه (روابط الفيديو والصور ومعاينات الفيديو). التنزيلات المستأنفة والمكتملة لا تُمس
 internal fun MainActivity.pruneTab(t: Tab) {
     val k = tabKey(t)
+    t.capImgs = null
+    t.capSched = ""
+    t.capRun?.let { ui.removeCallbacks(it) }
+    t.capRun = null
     considered.removeAll { it.startsWith(k) }
     for (c in ArrayList(cands.values)) {
-        if (c.owner === t && c.rw.btn.isEnabled && c.rw.bar.visibility != View.VISIBLE) dropCand(c)
+        if (c.owner === t && isCapOnly(c.rw)) {
+            synchronized(videoThumbs) { videoThumbs.remove(c.url) }
+            probed.remove(c.url)
+            dropCand(c)
+        }
     }
+    posterBmp.clear()
+    posterFail.clear()
     updateCounts()
 }
 
@@ -217,6 +230,9 @@ internal fun MainActivity.enrich(c: Cand, h: Map<String, String>) {
 // يقرر هل الرابط فيديو حقيقي: يقرأ قائمة m3u8 (مسجل أم مباشر + المدة + الجودة + الحجم التقديري)، ويتحقق من نوع الملفات المباشرة
 internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView?) {
     val t = if (v != null) hasTab(v) else cur
+    // الالتقاط يعمل فقط على الصفحة التي أقف فيها فعلياً
+    if (t == null || t !== cur) return
+    val pageKey = t.lastUrl
     val key = tabKey(t) + u
     if (!showKnownSeg() && segUrls.contains(u)) { capNote("أُهمل", u, "جزء من قائمة بث معروفة (يمكنك إظهاره من الإعدادات: إظهار أجزاء القوائم)"); return }
     if (!considered.add(key)) return
@@ -243,7 +259,7 @@ internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView
             if (ok && !showKnownSeg() && segUrls.contains(u)) { ok = false; capNote("أُهمل", u, "جزء من بث (segment)") }
             if (ok) capNote("قُبل", u, if (m == null) "قُبل بلا معلومات" else (if (m.vod) "فيديو مسجل" else "بث مباشر") + " (" + m.why + "، ثقة " + m.conf + "%)" + (if (m.dur > 0) " • " + fmtDur(m.dur) else "") + (if (m.res.isNotEmpty()) " • " + m.res else ""))
             if (ok) ui.post {
-                if (t == null || tabs.contains(t)) {
+                if (t === cur && tabs.contains(t) && t.lastUrl == pageKey) {
                     addFound(u, h, m, t, t?.title ?: "")
                     val c = cands[u]
                     if (c != null && c.meta != null && !isHls(u) && !isDash(u)) enrich(c, h)
