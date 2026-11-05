@@ -518,6 +518,22 @@ internal fun MainActivity.addFound(u: String, h: Map<String, String>, meta: Meta
     pauseB.visibility = View.GONE
     cancelB.visibility = View.GONE
     pauseB.setOnClickListener {
+        // صف مستعاد لا يعمل فيه تحميل: «استئناف» يبدأ التحميل فعلاً ويكمل من حيث توقف
+        if (cands[u]?.rw?.idle == true) {
+            val rr = cands[u]!!.rw
+            val du = rr.dlUrl
+            if (du != null) {
+                // يكمل بنفس الجودة التي بدأ بها قبل الإغلاق دون إعادة سؤال الجودة
+                rr.started = true
+                rr.btn.isEnabled = false
+                rr.btn.alpha = 0.5f
+                rr.bar.visibility = View.VISIBLE
+                rr.msg.text = "في الانتظار..."
+                enqueue(du, foundHdr[u] ?: emptyMap(), rr)
+                updateCounts()
+            } else foundStart[u]?.invoke()
+            return@setOnClickListener
+        }
         ctl.paused = !ctl.paused
         Diag.i("تحميل", (if (ctl.paused) "إيقاف مؤقت" else "استئناف") + " | id=" + TaskStore.id(u) + " | بايتات=" + ctl.bytes.get() + " | الرابط " + u)
         pauseB.text = if (ctl.paused) "استئناف" else "إيقاف مؤقت"
@@ -650,6 +666,8 @@ internal fun MainActivity.offlineProtected(u: String, h: Map<String, String>, r:
 
 internal fun MainActivity.enqueue(u: String, h: Map<String, String>, r: Row) {
     if (r.removed) return
+    r.idle = false
+    r.dlUrl = u
     val ctl = r.ctl
     ctl.cancelled = false
     ctl.paused = false

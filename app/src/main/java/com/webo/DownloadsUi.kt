@@ -161,6 +161,11 @@ internal fun MainActivity.deleteRow(c: Cand) {
     r.ctl.paused = false
     r.ctl.cancelled = true
     val w = r.work
+    if (r.idle) {
+        // صف مستعاد لا يعمل فيه تحميل: تُحذف أجزاؤه المؤقتة المحفوظة أيضاً
+        val wd = File(getExternalFilesDir(null) ?: filesDir, "work_" + r.id)
+        diagThread("DownloadsUi:idleDel") { try { wd.deleteRecursively() } catch (e: Throwable) { Diag.swallow("DownloadsUi.kt idleDel", e) } }.start()
+    }
     if (r.state != 1 && r.state != 2 && w != null) {
         diagThread("DownloadsUi:162") { try { w.deleteRecursively() } catch (e: Throwable) { Diag.swallow("DownloadsUi.kt:162 deleteRow", e);} }.start()
         r.work = null

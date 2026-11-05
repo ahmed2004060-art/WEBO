@@ -32,7 +32,8 @@ class TaskRec(
     val mime: String?,
     val created: Long,
     val updated: Long,
-    val pageUrl: String = ""
+    val pageUrl: String = "",
+    val dlUrl: String = ""
 ) {
     var thumbBmp: Bitmap? = null
 }
@@ -85,6 +86,7 @@ object TaskStore {
             o.put("created", r.created)
             o.put("updated", r.updated)
             o.put("pageUrl", r.pageUrl)
+            o.put("dlUrl", r.dlUrl)
             val f = jf(ctx, r.id)
             val tmp = File(f.parentFile, r.id + ".tmp")
             tmp.writeText(o.toString())
@@ -129,7 +131,7 @@ object TaskStore {
                         o.optInt("state"), o.optInt("done"), o.optInt("total"), o.optLong("bytes"),
                         o.optString("msg"), o.optInt("kindProt", 2), o.optString("kindFmt"), o.optInt("engine"),
                         optS(o, "finalLoc"), optS(o, "offlineId"), o.optBoolean("protectedStream"), o.optBoolean("watchOk"),
-                        optS(o, "fname"), optS(o, "mime"), o.optLong("created"), o.optLong("updated"), o.optString("pageUrl")
+                        optS(o, "fname"), optS(o, "mime"), o.optLong("created"), o.optLong("updated"), o.optString("pageUrl"), o.optString("dlUrl")
                     )
                     out.add(r)
                 } catch (e: Throwable) { Diag.swallow("TaskStore.kt:135 TaskStore.load", e);

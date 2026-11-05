@@ -34,6 +34,10 @@ internal class ProtectedException(m: String) : Exception(m)
 
 internal class Row(val bar: ProgressBar, val msg: TextView, val btn: View, val pause: TextView, val cancel: TextView, val ctl: Ctl, val view: View) {
     var work: File? = null
+    // صف مستعاد بعد إغلاق التطبيق (حالته محفوظة لكن لا يوجد تحميل شغّال)
+    var idle = false
+    // الرابط الفعلي الذي بدأ به التحميل (بعد اختيار الجودة): يُحفظ ليكمل الاستئناف بعد إعادة الفتح بنفس الجودة دون سؤال
+    var dlUrl: String? = null
     var finalLoc: String? = null
     var finalIsUri = false
     var watch: View? = null

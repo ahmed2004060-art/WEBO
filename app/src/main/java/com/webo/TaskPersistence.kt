@@ -28,7 +28,7 @@ internal fun MainActivity.saveTask(r: Row) {
         r.id, r.url, foundHdr[r.url] ?: emptyMap(), c.pageTitle, c.hostTxt, mj,
         r.state, r.bar.progress, r.bar.max, r.ctl.bytes.get(), r.msg.text.toString(),
         r.kindProt, r.kindFmt, r.engine, r.finalLoc, r.offlineId, r.protectedStream,
-        r.watch?.visibility == View.VISIBLE, foundName[r.url], foundMime[r.url], r.created, System.currentTimeMillis(), r.pageUrl
+        r.watch?.visibility == View.VISIBLE, foundName[r.url], foundMime[r.url], r.created, System.currentTimeMillis(), r.pageUrl, r.dlUrl ?: ""
     )
     try { taskIo.execute { TaskStore.save(this, rec) } } catch (e: Throwable) { Diag.swallow("TaskPersistence.kt:31 saveTask", e);}
     if (r.thumbSet && !r.thumbSaved) {
@@ -93,6 +93,7 @@ internal fun MainActivity.restoreOne(rec: TaskRec) {
     val r = c.rw
     r.quiet = true
     r.created = rec.created
+    r.dlUrl = rec.dlUrl.ifEmpty { null }
     rec.thumbBmp?.let { setThumb(r, it); r.thumbSaved = true }
     if (rec.kindFmt.isNotEmpty()) setKind(r, rec.kindProt, rec.kindFmt)
     r.engine = if (rec.engine != 0) rec.engine else if (rec.kindFmt.isNotEmpty()) engineFor(rec.kindProt, rec.kindFmt) else 0
@@ -113,7 +114,14 @@ internal fun MainActivity.restoreOne(rec: TaskRec) {
             }
         }
         // المتوقف مؤقتاً والمستأنف: تبقى حالتهما ورسالتهما كما حُفظتا دون إعادة تنشيط
-        1, 2 -> r.started = true
+        // التي كانت «جارية» لا يعمل لها تحميل بعد الإغلاق: تعود «متوقفة مؤقتاً» وتنتظر ضغط «استئناف» (لا استئناف تلقائي)
+        1, 2 -> {
+            r.started = true
+            if (st == 1) {
+                st = 2
+                msg = "متوقف مؤقتاً"
+            }
+        }
     }
     if (rec.protectedStream && st == 4) {
         r.protectedStream = true
@@ -140,6 +148,18 @@ internal fun MainActivity.restoreOne(rec: TaskRec) {
         r.watch?.visibility = View.VISIBLE
     }
     setState(r, st)
+    if (st == 1 || st == 2) {
+        // لا يوجد تحميل شغّال بعد إغلاق التطبيق: الحالة كما هي، لكن الأزرار تعمل فعلاً
+        r.idle = true
+        r.pause.text = "استئناف"
+        r.pause.visibility = View.VISIBLE
+        r.cancel.visibility = View.VISIBLE
+        // كالمهمة المتوقفة العادية: زر «تحميل» معطّل، والشريط ظاهر، ومكانها قسم المهام النشطة
+        r.btn.isEnabled = false
+        r.btn.alpha = 0.5f
+        r.bar.visibility = View.VISIBLE
+        setActive(r, true)
+    }
     r.quiet = false
     saveTask(r)
     // مهمة لم تُفحص صيغتها قبل الإغلاق: نفحصها الآن
