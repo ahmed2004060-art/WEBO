@@ -163,7 +163,9 @@ internal fun MainActivity.makeWeb(): WebView {
                 accept.contains("dash+xml") || pathOnly.endsWith(".mpd") ||
                 videoExt.any { pathOnly.endsWith(it) } || low.contains(".mp4") ||
                 (capAudio() && audioExt.any { pathOnly.endsWith(it) }) || (capSeg() && segExt.any { pathOnly.endsWith(it) })) {
-                ui.post { consider(u, h, v) }
+                if (pageHdrNames.size > 500) pageHdrNames.clear()
+                pageHdrNames[u] = r.requestHeaders.keys.sorted().joinToString(", ")
+                ui.post { consider(u, h, v, "معترض الطلبات") }
                 return null
             }
             if (adBlock) {

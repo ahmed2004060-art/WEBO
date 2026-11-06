@@ -132,6 +132,20 @@ internal fun MainActivity.frameFallback(rw: Row, vurl: String, h: Map<String, St
                     try { r.release() } catch (e: Throwable) { Diag.swallow("Thumbnails.kt:135 frameFallback", e);}
                 }
             } catch (e: Throwable) { Diag.swallow("Thumbnails.kt:137 frameFallback", e);
+                // سبب فشل اللقطة: الرابط وأسماء الترويسات المرسلة ورمز رد طلب مباشر لنفس الرابط
+                val sent = h.filter { it.value.isNotEmpty() }.keys.sorted().joinToString(", ")
+                var direct = ""
+                try {
+                    val dc = java.net.URL(vurl).openConnection() as java.net.HttpURLConnection
+                    try {
+                        dc.connectTimeout = 8000
+                        dc.readTimeout = 8000
+                        for ((k, v) in h) if (v.isNotEmpty() && k.lowercase() !in skipHeaders) dc.setRequestProperty(k, v)
+                        dc.setRequestProperty("Range", "bytes=0-0")
+                        direct = "HTTP " + dc.responseCode
+                    } finally { try { dc.disconnect() } catch (x: Throwable) { Diag.swallow("Thumbnails.kt frameFallback direct disconnect", x) } }
+                } catch (x: Throwable) { Diag.swallow("Thumbnails.kt frameFallback direct", x); direct = "تعذر: " + (x.message ?: x.javaClass.simpleName) }
+                Diag.i("فشل-لقطة", "الرابط: " + diagEsc(vurl) + "\nترويسات مرسلة: " + sent + "\nالسبب: " + (e.message ?: e.javaClass.simpleName) + "\nرمز رد مباشر لنفس الرابط: " + direct)
             } finally {
                 rw.thumbBusy = false
             }

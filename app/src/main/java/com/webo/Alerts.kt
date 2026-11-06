@@ -36,10 +36,10 @@ internal fun MainActivity.buildAlerts(): View {
     head.orientation = LinearLayout.HORIZONTAL
     head.gravity = Gravity.CENTER_VERTICAL
     head.addView(tv("تنبيهات التطبيق", 20f, cText, true), lp(0, WRAP, 1f))
-    head.addView(pill("نسخ الكل", false) {
+    head.addView(dlPill("نسخ الكل", false) {
         copyText(alerts.joinToString("\n\n") { it.kind + " | " + it.msg + "\n" + it.detail })
     }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
-    head.addView(pill("مسح", false) { clearAlerts() })
+    head.addView(dlPill("مسح", false) { clearAlerts() }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     col.addView(head, lp(MATCH, WRAP, 0f, 0, 0, 0, 6))
     col.addView(tv("أي خطأ في التحميل أو الدمج أو الصفحات أو التطبيق يظهر هنا. اضغط على التنبيه لعرض التفاصيل.", 12f, cMuted), lp(MATCH, WRAP, 0f, 0, 0, 0, 12))
     alertEmpty = tv("لا توجد أخطاء", 14f, cMuted)
@@ -83,7 +83,7 @@ internal fun MainActivity.addAlert(a: AlertItem, persist: Boolean) {
         row.addView(d, lp(MATCH, WRAP, 0f, 0, 6, 0, 0))
         row.setOnClickListener { d.visibility = if (d.visibility == View.GONE) View.VISIBLE else View.GONE }
     }
-    row.addView(pill("نسخ", false) { copyText(a.kind + " | " + a.msg + "\n" + a.detail) }, lp(WRAP, WRAP, 0f, 0, 8, 0, 0))
+    row.addView(dlPill("نسخ", false) { copyText(a.kind + " | " + a.msg + "\n" + a.detail) }, lp(WRAP, WRAP, 0f, 0, 8, 0, 0))
     alertList.addView(row, 0, lp(MATCH, WRAP, 0f, 0, 0, 0, 10))
     if (persist) persistAlert(a)
     updateCounts()

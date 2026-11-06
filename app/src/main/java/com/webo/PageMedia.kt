@@ -131,15 +131,10 @@ internal fun MainActivity.saveImageSync(src: String, page: String, onProgress: (
 
 internal fun MainActivity.showImagesSection() {
     val t = cur
-    if (t == null) {
-        toast("افتح صفحة في المتصفح أولاً")
-        return
-    }
-    val page = t.web.url ?: ""
-    val pre = t.capImgs
-    // الصور ملتقطة تلقائياً: الزر يعرضها فقط
-    if (pre != null && pre.isNotEmpty()) openImagesDialog(pre, page)
-    else toast("لم أجد صوراً في هذه الصفحة")
+    val page = t?.web?.url ?: ""
+    val pre = t?.capImgs
+    // الصور ملتقطة تلقائياً: الزر يعرضها فقط، وتفتح الصفحة دائماً حتى لو لم تُلتقط صور
+    openImagesDialog(pre ?: emptyList(), page)
 }
 
 // يبدأ التقاط صور الصفحة التي أقف فيها تلقائياً عند فتحها، ويحذفها pruneTab عند الخروج
@@ -219,14 +214,44 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
     val title = tv("", 16f, cText, true)
     root.addView(title, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
 
-    val cntB = pill("عداد التقاط الصور", true) { }
-    val dlsB = pill("التحميلات", false) { }
-    val closeB = pill("إغلاق", false) { dlg.dismiss() }
+    fun badgeBtn(label: String, on: Boolean): Triple<LinearLayout, TextView, TextView> {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.HORIZONTAL
+        box.gravity = android.view.Gravity.CENTER
+        box.setPadding(dp(12), 0, dp(12), 0)
+        box.minimumHeight = dp(46)
+        val t = tv(label, 13f, if (on) Color.WHITE else cAccent, true)
+        val n = tv("0", 12f, Color.WHITE, true)
+        n.visibility = View.GONE
+        n.gravity = android.view.Gravity.CENTER
+        n.minWidth = dp(22)
+        n.setPadding(dp(6), dp(1), dp(6), dp(1))
+        n.background = bg(Color.parseColor("#E53935"), 11)
+        box.addView(t, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+        box.addView(n, lp(WRAP, WRAP))
+        box.background = if (on) bg(cAccent, 18) else bg(Color.TRANSPARENT, 18, cAccent)
+        return Triple(box, t, n)
+    }
+    fun blinkNum(n: TextView, seen: Boolean, count: Int) {
+        n.text = count.toString()
+        n.visibility = if (count > 0) View.VISIBLE else View.GONE
+        if (seen || count == 0) { n.clearAnimation(); n.alpha = 1f }
+        else if (n.animation == null) {
+            val an = android.view.animation.AlphaAnimation(1f, 0.25f)
+            an.duration = 600
+            an.repeatMode = android.view.animation.Animation.REVERSE
+            an.repeatCount = android.view.animation.Animation.INFINITE
+            n.startAnimation(an)
+        }
+    }
+    val (cntW, cntB, cntN) = badgeBtn("عداد التقاط الصور", true)
+    val dlsB = pill("التحميلات", false) { }.also { it.height = dp(46) }
+    val closeB = pill("إغلاق", false) { dlg.dismiss() }.also { it.height = dp(46) }
     val nav = LinearLayout(this)
     nav.orientation = LinearLayout.HORIZONTAL
-    nav.addView(cntB, lp(0, WRAP, 1f, 0, 0, 6, 0))
+    nav.addView(cntW, lp(0, WRAP, 1f, 0, 0, 6, 0))
     nav.addView(dlsB, lp(0, WRAP, 1f, 0, 0, 6, 0))
-    nav.addView(closeB, lp(WRAP, WRAP))
+    nav.addView(closeB, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     root.addView(nav, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
 
     // صفحة عداد التقاط الصور
@@ -241,15 +266,15 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
     dlsBox.visibility = View.GONE
     root.addView(dlsBox, lp(MATCH, 0, 1f))
 
-    val smallB = pill("إظهار الصور الصغيرة", false) { }
-    val allB = pill("تحديد الكل", false) { }
+    val (smallW, smallB, smallN2) = badgeBtn("إظهار الصور الصغيرة", false)
+    val allB = pill("تحديد الكل", false) { }.also { it.height = dp(46) }
     val bar1 = LinearLayout(this)
     bar1.orientation = LinearLayout.HORIZONTAL
-    bar1.addView(smallB, lp(0, WRAP, 1f, 0, 0, 6, 0))
-    bar1.addView(allB, lp(0, WRAP, 1f))
+    bar1.addView(smallW, lp(0, WRAP, 1f, 0, 0, 6, 0))
+    bar1.addView(allB, lp(0, WRAP, 1f, 0, 0, 6, 0))
     cntBox.addView(bar1, lp(MATCH, WRAP, 0f, 0, 0, 0, 6))
 
-    val dlB = pill("⬇ تحميل المحدد", true) { }
+    val dlB = pill("⬇ تحميل المحدد", true) { }.also { it.height = dp(46) }
     cntBox.addView(dlB, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
 
     val sv = ScrollView(this)
@@ -260,6 +285,10 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
 
     val side = (resources.displayMetrics.widthPixels - dp(24) - dp(12)) / 3
     var showSmall = false
+    var cntSeen = true
+    var smallSeen = true
+    var lastCnt = 0
+    var lastSmall = 0
     var shown = 0
 
     fun isSmall(g: GImg): Boolean = maxOf(g.w, g.h) in 1..149
@@ -281,9 +310,17 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
         title.text = if (shown == 1) "تحميلات الصور: " + all.count { it.started }
             else ""
         title.visibility = if (title.text.isEmpty()) View.GONE else View.VISIBLE
-        cntB.text = if (vis.isNotEmpty()) "عداد التقاط الصور (" + vis.size + ")" else "عداد التقاط الصور"
+        cntB.text = "عداد التقاط الصور"
+        if (vis.size > lastCnt) cntSeen = (shown == 0)
+        if (shown == 0) cntSeen = true
+        lastCnt = vis.size
+        blinkNum(cntN, cntSeen, vis.size)
         val smallN = cap.count { isSmall(it) }
-        smallB.text = (if (showSmall) "إخفاء الصور الصغيرة" else "إظهار الصور الصغيرة") + " (" + smallN + ")"
+        smallB.text = if (showSmall) "إخفاء الصور الصغيرة" else "إظهار الصور الصغيرة"
+        if (smallN > lastSmall) smallSeen = showSmall
+        if (showSmall) smallSeen = true
+        lastSmall = smallN
+        blinkNum(smallN2, smallSeen, smallN)
         allB.text = if (vis.isNotEmpty() && vis.all { it.sel }) "إلغاء التحديد" else "تحديد الكل"
     }
 
@@ -400,7 +437,8 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
         shown = v
         cntBox.visibility = if (v == 0) View.VISIBLE else View.GONE
         dlsBox.visibility = if (v == 1) View.VISIBLE else View.GONE
-        styleChip(cntB, v == 0)
+        cntW.background = if (v == 0) bg(cAccent, 18) else bg(Color.TRANSPARENT, 18, cAccent)
+        cntB.setTextColor(if (v == 0) Color.WHITE else cAccent)
         styleChip(dlsB, v == 1)
         updateTitle()
         if (v == 0) grid.post { loadVisible() }
@@ -457,11 +495,11 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
         g.chip?.setTextColor(if (st == 2) Color.parseColor("#3DB36B") else Color.parseColor("#E05A5A"))
     }
 
-    cntB.setOnClickListener { showView(0) }
+    cntW.setOnClickListener { showView(0) }
     dlsB.setOnClickListener { showView(1) }
 
     sv.viewTreeObserver.addOnScrollChangedListener { loadVisible() }
-    smallB.setOnClickListener {
+    smallW.setOnClickListener {
         showSmall = !showSmall
         refresh()
     }

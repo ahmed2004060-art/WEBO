@@ -113,7 +113,18 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     for (r in SelfCheck.lastResults) addResult(r)
 
     var refresh: () -> Unit = {}
-    val runBtn = pill("تشغيل الفحص الذاتي", true) {
+    info.addView(dlPill("حذف السجل", false) {
+        StyledBuilder(this).setTitle("حذف السجل")
+            .setMessage("سيتم حذف كل أحداث السجل نهائياً. لا يمكن التراجع.")
+            .setPositiveButton("حذف") { _, _ ->
+                Diag.clearAll()
+                refresh()
+                toast("تم حذف السجل")
+            }
+            .setNegativeButton("إلغاء", null)
+            .show()
+    }, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
+    val runBtn = dlPill("تشغيل الفحص الذاتي", true) {
         val sc = SelfCheck(this)
         chkList.removeAllViews()
         chkSummary.text = "جارٍ الفحص..."
@@ -139,7 +150,7 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     val listBox = LinearLayout(this)
     listBox.orientation = LinearLayout.VERTICAL
     col.addView(listBox, lp(MATCH, WRAP))
-    val moreBtn = pill("عرض المزيد", false) { }
+    val moreBtn = dlPill("عرض المزيد", false) { }
     moreBtn.visibility = View.GONE
     col.addView(moreBtn, lp(MATCH, WRAP, 0f, 0, 6, 0, 0))
 
@@ -203,7 +214,8 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         for (e in all) counts[e.kind] = (counts[e.kind] ?: 0) + 1
         fun chip(label: String, key: String?) {
             val t = tv(label, 12f, cAccent, true)
-            t.setPadding(dp(12), dp(6), dp(12), dp(6))
+            t.setPadding(dp(12), 0, dp(12), 0)
+            t.height = dp(46)
             t.gravity = Gravity.CENTER
             styleChip(t, filter == key)
             t.setOnClickListener { filter = key; renderChips(); renderAll() }
@@ -227,8 +239,8 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         }.start()
     }
 
-    actions.addView(pill("تحديث", false) { refresh() }, lp(0, WRAP, 1f, 0, 0, 4, 0))
-    actions.addView(pill("نسخ", false) {
+    actions.addView(dlPill("تحديث", false) { refresh() }, lp(0, WRAP, 1f, 0, 0, 4, 0))
+    actions.addView(dlPill("نسخ", false) {
         val v = visible()
         val sb = StringBuilder()
         for (e in v) {
@@ -240,7 +252,8 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         copyText(sb.toString())
         if (cut) toast("نُسخ الأحدث فقط (حد الحافظة). للتقرير الكامل استخدم «مشاركة كملف»")
     }, lp(0, WRAP, 1f, 0, 0, 4, 0))
-    actions.addView(pill("مشاركة كملف", true) { shareDiagReport() }, lp(0, WRAP, 1f))
+    actions.addView(dlPill("مشاركة كملف", true) { shareDiagReport() }, lp(0, WRAP, 1f, 0, 0, 4, 0))
+    actions.addView(dlPill("حذف السجل", false) { }, lp(0, WRAP, 1f, 0, 0, 0, 0))
 
     refresh()
 }

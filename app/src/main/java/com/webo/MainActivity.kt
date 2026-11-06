@@ -501,7 +501,7 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun found(src: String, page: String) {
             if (!src.startsWith("http")) return
-            ui.post { consider(src, hdrFor(src, page), cur?.web) }
+            ui.post { consider(src, hdrFor(src, page), cur?.web, "جسر الصفحة") }
         }
 
         @JavascriptInterface
@@ -590,6 +590,9 @@ class MainActivity : Activity() {
     )
 
     internal val probed = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    // أسماء ترويسات الطلب كما أرسلتها الصفحة نفسها لكل رابط قائمة، ورابط سُجّل له رفض 401 (مرة واحدة)
+    internal val pageHdrNames = java.util.concurrent.ConcurrentHashMap<String, String>()
+    internal val logged401 = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     internal val prober = DiagPool("prober", 8, 8, 30L, java.util.concurrent.TimeUnit.SECONDS,
         java.util.concurrent.LinkedBlockingQueue<Runnable>()
     ).also { it.allowCoreThreadTimeOut(true) }

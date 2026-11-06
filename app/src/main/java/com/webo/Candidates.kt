@@ -228,7 +228,7 @@ internal fun MainActivity.enrich(c: Cand, h: Map<String, String>) {
 }
 
 // يقرر هل الرابط فيديو حقيقي: يقرأ قائمة m3u8 (مسجل أم مباشر + المدة + الجودة + الحجم التقديري)، ويتحقق من نوع الملفات المباشرة
-internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView?) {
+internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView?, srcLabel: String = "غير محدد") {
     val t = if (v != null) hasTab(v) else cur
     // الالتقاط يعمل فقط على الصفحة التي أقف فيها فعلياً
     if (t == null || t !== cur) return
@@ -246,7 +246,7 @@ internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView
             } catch (e: Throwable) { Diag.swallow("Candidates.kt:230 consider", e);
                 meta = null // تعذر الفحص: نعرض الرابط كما هو بدل أن نخسره
                 capNote("تنبيه", u, "تعذر فحص الرابط (" + (e.message ?: e.javaClass.simpleName) + ") فعُرض كما هو")
-                logErr("التقاط", "تعذر فحص الرابط: " + (e.message ?: e.javaClass.simpleName), e)
+                logErr("التقاط", "تعذر فحص الرابط: " + (e.message ?: e.javaClass.simpleName) + " | الرابط: " + diagEsc(u) + " | مصدر الالتقاط: " + srcLabel, e)
             }
             val m: Meta? = meta
             val thr = prefs().getInt("uncert", 75)

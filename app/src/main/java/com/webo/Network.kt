@@ -120,7 +120,7 @@ internal fun MainActivity.probe(u: String, h: Map<String, String>, v: WebView) {
             try {
                 var r = probeReq(u, h, true)
                 if (r == null || r.code !in 200..299) r = probeReq(u, h, false)
-                if (r != null && r.code in 200..299 && probeIsVideo(r.ct, r.len, u)) ui.post { consider(u, h, v) }
+                if (r != null && r.code in 200..299 && probeIsVideo(r.ct, r.len, u)) ui.post { consider(u, h, v, "فحص رأس الرد") }
             } catch (e: Throwable) { Diag.swallow("Network.kt:124 probe", e);
             }
         }
@@ -156,12 +156,13 @@ internal fun MainActivity.conn(u0: String, h: Map<String, String>, range: String
         c.connectTimeout = prefs().getInt("conntimeout", 45) * 1000
         c.readTimeout = prefs().getInt("readtimeout", 120) * 1000
         c.instanceFollowRedirects = false
+        val sentNames = java.util.TreeSet<String>()
         for ((k, v) in h) {
-            if (v.isNotEmpty() && k.lowercase() !in skipHeaders) c.setRequestProperty(k, v)
+            if (v.isNotEmpty() && k.lowercase() !in skipHeaders) { c.setRequestProperty(k, v); sentNames.add(k) }
         }
-        for ((ck, cv) in customHdrs()) c.setRequestProperty(ck, cv)
-        c.setRequestProperty("Accept-Encoding", "identity")
-        if (range != null) c.setRequestProperty("Range", range)
+        for ((ck, cv) in customHdrs()) { c.setRequestProperty(ck, cv); sentNames.add(ck) }
+        c.setRequestProperty("Accept-Encoding", "identity"); sentNames.add("Accept-Encoding")
+        if (range != null) { c.setRequestProperty("Range", range); sentNames.add("Range") }
         val code = c.responseCode
         if (code in 300..399) {
             val loc = c.getHeaderField("Location")
@@ -171,13 +172,17 @@ internal fun MainActivity.conn(u0: String, h: Map<String, String>, range: String
             continue
         }
         if (code >= 400) {
-            Diag.i("شبكة", "HTTP " + code + " | " + u + (if (range != null) " | Range " + range else "") + (if (u != u0) " | (بعد تحويل من " + u0 + ")" else ""))
+            if (code == 401 && logged401.add(u0)) {
+                Diag.i("رفض-401", diagEsc(u) + "\nترويسات أرسلها التطبيق: " + sentNames.joinToString(", ") +
+                    "\nترويسات أرسلتها الصفحة لنفس الرابط: " + (pageHdrNames[u0] ?: pageHdrNames[u] ?: "غير مسجّلة (الطلب لم يمر عبر المعترض)"))
+            }
+            Diag.i("شبكة", "HTTP " + code + " | " + diagEsc(u) + (if (range != null) " | Range " + range else "") + (if (u != u0) " | (بعد تحويل من " + diagEsc(u0) + ")" else ""))
             c.disconnect()
             throw Exception("HTTP $code")
         }
         return c
     }
-    Diag.i("شبكة", "تحويلات كثيرة (> " + maxHop + ") | " + u0 + " → " + u)
+    Diag.i("شبكة", "تحويلات كثيرة (> " + maxHop + ") | " + diagEsc(u0) + " → " + diagEsc(u))
     throw Exception("تحويلات كثيرة")
 }
 

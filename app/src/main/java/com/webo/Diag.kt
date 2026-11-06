@@ -154,6 +154,18 @@ object Diag {
         }
     }
 
+    // يحذف كل ملفات السجل ثم يبدأ ملفاً جديداً فارغاً
+    fun clearAll() {
+        synchronized(lock) {
+            try { out?.close() } catch (t: Throwable) { android.util.Log.e("Diag", "close failed", t) }
+            out = null
+            dir?.listFiles()?.filter { it.name.startsWith("diag-") }?.forEach { it.delete() }
+            index = 1
+            written = 0L
+            try { openCurrent() } catch (t: Throwable) { android.util.Log.e("Diag", "reopen failed", t) }
+        }
+    }
+
     fun dirPath(): String = dir?.absolutePath ?: "؟"
 
     fun files(): List<File> = synchronized(lock) {
@@ -302,3 +314,13 @@ internal fun dlTrace(event: String, r: Row, extra: String = "") {
 }
 
 class DiagEvent(val time: String, val kind: String, val head: String, val body: String)
+
+// يعرض المحارف غير المطبوعة بصيغة مقروءة (u0002) دون تغيير النص الأصلي؛ لتظهر في التقرير أسباب الروابط المشوّهة
+internal fun diagEsc(s: String): String {
+    val sb = StringBuilder()
+    for (ch in s) {
+        if (ch.isISOControl() || ch == ' ' || ch == '\u00a0') sb.append("\\u").append(String.format("%04x", ch.code))
+        else sb.append(ch)
+    }
+    return sb.toString()
+}

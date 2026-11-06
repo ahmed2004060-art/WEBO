@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 // 3) مرشّح أخطاء console القادمة من الصفحات (يحمي الخيط الرئيسي من الإغراق).
 object DiagWatch {
     private val started = AtomicBoolean(false)
-    private const val ANR_FIRST_MS = 4000L
+    private const val ANR_FIRST_MS = 1000L
+    private const val ANR_SECOND_MS = 1000L
     private const val ANR_AGAIN_MS = 10000L
     private const val MEM_EVERY_MS = 15000L
     private const val BEAT_EVERY_MS = 300000L
@@ -47,6 +48,7 @@ object DiagWatch {
         var lastTick = SystemClock.elapsedRealtime()
         var stallStart = 0L
         var nextStall = ANR_FIRST_MS
+        var stackCount = 0
         var lastMem = 0L
         var lastBeat = lastTick
         var level = 0
@@ -54,7 +56,7 @@ object DiagWatch {
             val ping = SystemClock.elapsedRealtime()
             main.post { pong = SystemClock.elapsedRealtime() }
             try {
-                Thread.sleep(1000)
+                Thread.sleep(500)
             } catch (e: InterruptedException) {
                 Diag.e("مراقب", "توقف خيط المراقبة", e)
                 return
@@ -64,6 +66,7 @@ object DiagWatch {
             if (now - lastTick > 3500L) {
                 stallStart = 0L
                 nextStall = ANR_FIRST_MS
+                stackCount = 0
                 lastTick = now
                 lastMem = now
                 continue
@@ -74,13 +77,15 @@ object DiagWatch {
                     Diag.i("تجمّد-انتهى", "عادت الواجهة للاستجابة بعد " + (now - stallStart) + " ms")
                     stallStart = 0L
                     nextStall = ANR_FIRST_MS
+                    stackCount = 0
                 }
             } else {
                 if (stallStart == 0L) stallStart = ping
                 val d = now - stallStart
                 if (d >= nextStall) {
                     Diag.i("تجمّد-واجهة", "الخيط الرئيسي لا يستجيب منذ " + d + " ms\n" + mainStack())
-                    nextStall = d + ANR_AGAIN_MS
+                    stackCount++
+                    nextStall = d + (if (stackCount == 1) ANR_SECOND_MS else ANR_AGAIN_MS)
                 }
             }
             if (now - lastMem >= MEM_EVERY_MS) {

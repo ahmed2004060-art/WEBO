@@ -146,6 +146,7 @@ class ViewerActivity : Activity() {
         v.setTypeface(null, Typeface.BOLD)
         v.gravity = Gravity.CENTER
         v.setPadding(dp(12), dp(7), dp(12), dp(7))
+        v.height = dp(46)
         v.background = mkBg(Color.TRANSPARENT, 18, p.accent, resources.displayMetrics.density)
         v.setOnClickListener { onClick() }
         return v
@@ -348,6 +349,13 @@ class StorageActivity : Activity() {
         return v
     }
 
+    // أزرار صفحة المخزن: الارتفاع 46dp فقط
+    private fun rowPill(t: String, filled: Boolean, onClick: () -> Unit): TextView {
+        val v = pill(t, filled, onClick)
+        v.height = dp(46)
+        return v
+    }
+
     private fun lp(w: Int, h: Int, wt: Float = 0f, l: Int = 0, t: Int = 0, r: Int = 0, b: Int = 0): LinearLayout.LayoutParams {
         val x = LinearLayout.LayoutParams(w, h, wt)
         x.setMargins(dp(l), dp(t), dp(r), dp(b))
@@ -374,8 +382,8 @@ class StorageActivity : Activity() {
         head.maxLines = 1
         head.ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
         bar.addView(head, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        bar.addView(pill("تحديث", false) { refresh() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 4, 0, 4, 0))
-        bar.addView(pill("رجوع", true) { onBackPressed() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        bar.addView(rowPill("تحديث", false) { refresh() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 4, 0, 4, 0))
+        bar.addView(rowPill("رجوع", true) { onBackPressed() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(bar, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         list = LinearLayout(this)
@@ -442,7 +450,7 @@ class StorageActivity : Activity() {
         val dl = card()
         dl.addView(tv("التحميلات المحفوظة", 15f, p.text, true))
         dl.addView(tv("الفيديوهات والملفات والصور في مجلد التحميلات", 12f, p.muted))
-        dl.addView(pill("استعراض", true) { showDownloads() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
+        dl.addView(rowPill("استعراض", true) { showDownloads() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
 
         val roots = ArrayList<Triple<String, String, File?>>()
         roots.add(Triple("تحميلات غير مكتملة", "أجزاء تحميلات متوقفة يمكن إكمالها من صفحة التحميلات", getExternalFilesDir(null)))
@@ -455,7 +463,7 @@ class StorageActivity : Activity() {
             c.addView(tv(r.second, 12f, p.muted))
             val sz = tv("جاري الحساب...", 12f, p.accent)
             c.addView(sz, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 4, 0, 0))
-            c.addView(pill("استعراض", true) { rootDir = f; showDir(f) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
+            c.addView(rowPill("استعراض", true) { rootDir = f; showDir(f) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
             diagThread("Storage:459") {
                 val i = dirInfo(f)
                 ui.post { sz.text = i.first.toString() + " ملف  •  " + FileUtil.fmtSize(i.second) }
@@ -537,14 +545,14 @@ class StorageActivity : Activity() {
         c.addView(tv(FileUtil.fmtSize(item.size) + "  •  " + FileUtil.fmtDate(item.time), 12f, p.muted))
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
-        row.addView(pill("فتح", true) { openItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
+        row.addView(rowPill("فتح", true) { openItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
         if (item.file != null && !downloads) {
-            row.addView(pill("تحميل على الجهاز", false) { exportItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
+            row.addView(rowPill("تحميل على الجهاز", false) { exportItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
         }
         if (item.uri != null) {
-            row.addView(pill("مشاركة", false) { shareItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
+            row.addView(rowPill("مشاركة", false) { shareItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
         }
-        row.addView(pill("حذف", false) { deleteItem(item) })
+        row.addView(rowPill("حذف", false) { deleteItem(item) }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
         c.addView(row, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
         c.setOnClickListener { openItem(item) }
     }

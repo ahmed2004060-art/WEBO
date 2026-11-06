@@ -585,7 +585,7 @@ internal class SelfCheck(private val a: MainActivity) {
             if (android.os.Build.VERSION.SDK_INT < 26) return@t "تخطّي: getWebViewClient يتطلب API 26 (الجهاز " + android.os.Build.VERSION.SDK_INT + ")"
             val web = onUi { a.makeWeb() }
             try {
-                val cl = web.webViewClient
+                val cl = onUi { web.webViewClient }
                 fun req(u: String, main: Boolean) = object : android.webkit.WebResourceRequest {
                     override fun getUrl(): android.net.Uri = android.net.Uri.parse(u)
                     override fun isForMainFrame(): Boolean = main
@@ -594,10 +594,10 @@ internal class SelfCheck(private val a: MainActivity) {
                     override fun getMethod(): String = "GET"
                     override fun getRequestHeaders(): Map<String, String> = emptyMap()
                 }
-                need(!cl.shouldOverrideUrlLoading(web, req("https://selfcheck.invalid/a", true)), "https يجب أن يُحمَّل داخل التطبيق")
-                need(!cl.shouldOverrideUrlLoading(web, req("data:text/html,x", true)), "data: يجب أن يُحمَّل داخلياً")
-                need(!cl.shouldOverrideUrlLoading(web, req("blob:https://selfcheck.invalid/x", true)), "blob: يجب أن يُحمَّل داخلياً")
-                need(cl.shouldOverrideUrlLoading(web, req("webo-selfcheck-scheme://x", true)), "مخطط غير معروف يجب أن يُعالَج خارجياً (true) بلا انهيار")
+                need(!onUi { cl.shouldOverrideUrlLoading(web, req("https://selfcheck.invalid/a", true)) }, "https يجب أن يُحمَّل داخل التطبيق")
+                need(!onUi { cl.shouldOverrideUrlLoading(web, req("data:text/html,x", true)) }, "data: يجب أن يُحمَّل داخلياً")
+                need(!onUi { cl.shouldOverrideUrlLoading(web, req("blob:https://selfcheck.invalid/x", true)) }, "blob: يجب أن يُحمَّل داخلياً")
+                need(onUi { cl.shouldOverrideUrlLoading(web, req("webo-selfcheck-scheme://x", true)) }, "مخطط غير معروف يجب أن يُعالَج خارجياً (true) بلا انهيار")
                 val plain = cl.shouldInterceptRequest(web, req("https://selfcheck.invalid/page.html", true))
                 need(plain == null, "صفحة عادية يجب أن تمر (null)")
                 if (a.adBlock) {
