@@ -242,7 +242,8 @@ internal fun MainActivity.updateCounts() {
     tabDl.background = if (dlView == 0) bg(cAccent, 22, Color.WHITE) else bg(cAccent, 22)
     dlActions.visibility = View.VISIBLE
     val act = activeBox.childCount
-    navItems[1].second.text = if (act > 0) "جارٍ ($act)" else if (n > 0) "التنزيلات ($n)" else "التنزيلات"
+    navItems[1].second.text = if (act > 0) "جارٍ" else "التنزيلات"
+    setNavBadge(1, if (act > 0) act else n)
 
     val rows = allRows()
     var visAct = 0
@@ -258,7 +259,7 @@ internal fun MainActivity.updateCounts() {
     val none = visAct + visList == 0
     emptyTv.visibility = if (none && (dlView == 1 || n == 0)) View.VISIBLE else View.GONE
     emptyTv.text = if (dlView == 1) "لا توجد فيديوهات ملتقطة" else "لا توجد روابط ملتقطة بعد"
-    if (navItems.size > 4) navItems[4].second.text = if (alerts.isNotEmpty()) "التنبيهات (" + alerts.size + ")" else "التنبيهات"
+    if (navItems.size > 4) { navItems[4].second.text = "التنبيهات"; setNavBadge(4, alerts.size) }
     alertEmpty.visibility = if (alerts.isNotEmpty()) View.GONE else View.VISIBLE
 }
 
@@ -318,5 +319,21 @@ internal fun MainActivity.watchRow(r: Row) {
             }
         }
     } catch (e: Throwable) { Diag.swallow("DownloadsUi.kt:311 watchRow", e);
+    }
+}
+
+internal fun MainActivity.setNavBadge(idx: Int, count: Int) {
+    val b = navBadges[idx] ?: return
+    b.text = count.toString()
+    b.visibility = if (count > 0) View.VISIBLE else View.GONE
+    if (count > (navLast[idx] ?: 0)) navSeen[idx] = (page == idx)
+    navLast[idx] = count
+    if (navSeen[idx] != false || count == 0) { b.clearAnimation(); b.alpha = 1f }
+    else if (b.animation == null) {
+        val an = android.view.animation.AlphaAnimation(1f, 0.25f)
+        an.duration = 600
+        an.repeatMode = android.view.animation.Animation.REVERSE
+        an.repeatCount = android.view.animation.Animation.INFINITE
+        b.startAnimation(an)
     }
 }

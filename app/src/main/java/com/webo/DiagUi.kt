@@ -136,6 +136,7 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     chkCard.addView(runBtn, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
     val chkScroll = android.widget.ScrollView(this)
     chkScroll.addView(chkList)
+    chkScroll.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
     chkCard.addView(chkScroll, lp(MATCH, dp(260), 0f, 0, 8, 0, 0))
 
     // ---------- السجل ----------
@@ -153,6 +154,7 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     listBox.orientation = LinearLayout.VERTICAL
     val listScroll = android.widget.ScrollView(this)
     listScroll.addView(listBox)
+    listScroll.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
     col.addView(listScroll, lp(MATCH, dp(260)))
     val moreBtn = dlPill("عرض المزيد", false) { }
     moreBtn.visibility = View.GONE
@@ -212,21 +214,41 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         } else renderMore()
     }
 
+    val seenCnt = HashMap<String, Int>()
     fun renderChips() {
         chipRow.removeAllViews()
         val counts = LinkedHashMap<String, Int>()
         for (e in all) counts[e.kind] = (counts[e.kind] ?: 0) + 1
-        fun chip(label: String, key: String?) {
+        fun chip(label: String, key: String?, n: Int) {
+            val box = LinearLayout(this)
+            box.orientation = LinearLayout.HORIZONTAL
+            box.gravity = Gravity.CENTER
+            box.setPadding(dp(12), 0, dp(12), 0)
+            box.minimumHeight = dp(46)
             val t = tv(label, 12f, cAccent, true)
-            t.setPadding(dp(12), 0, dp(12), 0)
-            t.height = dp(46)
-            t.gravity = Gravity.CENTER
-            styleChip(t, filter == key)
-            t.setOnClickListener { filter = key; renderChips(); renderAll() }
-            chipRow.addView(t, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+            val num = tv(n.toString(), 12f, Color.WHITE, true)
+            num.gravity = Gravity.CENTER
+            num.minWidth = dp(22)
+            num.setPadding(dp(6), dp(1), dp(6), dp(1))
+            num.background = bg(Color.parseColor("#E53935"), 11)
+            box.addView(t, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+            box.addView(num, lp(WRAP, WRAP))
+            t.setTextColor(if (filter == key) Color.WHITE else cAccent)
+            box.background = if (filter == key) bg(cAccent, 18) else bg(Color.TRANSPARENT, 18, cAccent)
+            val k = key ?: "*"
+            if ((seenCnt[k] ?: 0) >= n) { num.clearAnimation(); num.alpha = 1f }
+            else {
+                val an = android.view.animation.AlphaAnimation(1f, 0.25f)
+                an.duration = 600
+                an.repeatMode = android.view.animation.Animation.REVERSE
+                an.repeatCount = android.view.animation.Animation.INFINITE
+                num.startAnimation(an)
+            }
+            box.setOnClickListener { seenCnt[k] = n; filter = key; renderChips(); renderAll() }
+            chipRow.addView(box, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
         }
-        chip("الكل (" + all.size + ")", null)
-        for ((k, n) in counts.entries.sortedByDescending { it.value }) chip(k + " (" + n + ")", k)
+        chip("الكل", null, all.size)
+        for ((k, n) in counts.entries.sortedByDescending { it.value }) chip(k, k, n)
     }
 
     refresh = {

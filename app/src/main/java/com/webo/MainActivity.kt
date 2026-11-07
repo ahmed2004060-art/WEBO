@@ -144,6 +144,9 @@ class MainActivity : Activity() {
     // 0 = شاشة التحميلات، 1 = شاشة عداد ملتقط الروابط (الملتقطة فقط)
     internal var dlView = 0
     internal var badgeSeen = true
+    internal val navBadges = HashMap<Int, TextView>()
+    internal val navSeen = HashMap<Int, Boolean>()
+    internal val navLast = HashMap<Int, Int>()
     internal var lastFound = 0
     internal lateinit var badgeBox: LinearLayout
     internal lateinit var badgeNum: TextView

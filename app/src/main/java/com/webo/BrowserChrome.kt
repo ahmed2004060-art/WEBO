@@ -99,7 +99,21 @@ internal fun MainActivity.buildNav(): View {
         t.gravity = Gravity.CENTER
         val isz = dp(24 * pi / 100)
         item.addView(im, lp(isz, isz))
-        item.addView(t, lp(WRAP, WRAP, 0f, 0, 2, 0, 0))
+        if (idx == 1 || idx == 4) {
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER
+            val nb = tv("0", 12f, Color.WHITE, true)
+            nb.visibility = View.GONE
+            nb.gravity = Gravity.CENTER
+            nb.minWidth = dp(22)
+            nb.setPadding(dp(6), dp(1), dp(6), dp(1))
+            nb.background = bg(Color.parseColor("#E53935"), 11)
+            row.addView(t, lp(WRAP, WRAP, 0f, 0, 0, 4, 0))
+            row.addView(nb, lp(WRAP, WRAP))
+            navBadges[idx] = nb
+            item.addView(row, lp(WRAP, WRAP, 0f, 0, 2, 0, 0))
+        } else item.addView(t, lp(WRAP, WRAP, 0f, 0, 2, 0, 0))
         item.setOnClickListener {
             closeNavMenu()
             if (idx == 3 && page == 3 && setSub.isNotEmpty()) openSettingsSub("") else showPage(idx)
@@ -135,6 +149,7 @@ internal fun MainActivity.buildNav(): View {
 internal fun MainActivity.showPage(i: Int) {
     page = i
     hideKb()
+    if (i == 1 || i == 4) { navSeen[i] = true; navBadges[i]?.let { it.clearAnimation(); it.alpha = 1f } }
     for (k in pagesList.indices) pagesList[k].visibility = if (k == i) View.VISIBLE else View.GONE
     for (k in navItems.indices) {
         val c = if (k == i) cAccent else cMuted

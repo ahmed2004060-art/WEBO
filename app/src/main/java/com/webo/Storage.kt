@@ -324,7 +324,7 @@ class StorageActivity : Activity() {
     private lateinit var list: LinearLayout
     private lateinit var head: TextView
     private val ui = Handler(Looper.getMainLooper())
-    private var mode = 0 // 0 الرئيسية، 1 التحميلات المحفوظة، 2 مجلد
+    private var mode = 0 // 0 الرئيسية، 1 التحميلات المحفوظة، 2 مجلد، 3 الفيديوهات المستوردة
     private var dir: File? = null
     private var rootDir: File? = null
     private var density = 1f
@@ -400,6 +400,7 @@ class StorageActivity : Activity() {
         when (mode) {
             0 -> showRoots()
             1 -> showDownloads()
+            3 -> showImported()
             else -> dir?.let { showDir(it) }
         }
     }
@@ -409,7 +410,7 @@ class StorageActivity : Activity() {
             val d = dir
             val r = rootDir
             if (d != null && r != null && d.absolutePath != r.absolutePath && d.parentFile != null) showDir(d.parentFile!!) else showRoots()
-        } else if (mode == 1) showRoots() else super.onBackPressed()
+        } else if (mode == 1 || mode == 3) showRoots() else super.onBackPressed()
     }
 
     private fun card(): LinearLayout {
@@ -451,6 +452,11 @@ class StorageActivity : Activity() {
         dl.addView(tv("التحميلات المحفوظة", 15f, p.text, true))
         dl.addView(tv("الفيديوهات والملفات والصور في مجلد التحميلات", 12f, p.muted))
         dl.addView(rowPill("استعراض", true) { showDownloads() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
+
+        val iv = card()
+        iv.addView(tv("الفيديوهات المستوردة", 15f, p.text, true))
+        iv.addView(tv("فيديوهات من جهازك تُشغَّل بمشغّل التطبيق دون حفظها", 12f, p.muted))
+        iv.addView(rowPill("استعراض", true) { showImported() }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
 
         val roots = ArrayList<Triple<String, String, File?>>()
         roots.add(Triple("تحميلات غير مكتملة", "أجزاء تحميلات متوقفة يمكن إكمالها من صفحة التحميلات", getExternalFilesDir(null)))
@@ -557,7 +563,91 @@ class StorageActivity : Activity() {
         c.setOnClickListener { openItem(item) }
     }
 
+    private fun impLoad(): ArrayList<String> {
+        val out = ArrayList<String>()
+        try {
+            val arr = org.json.JSONArray(getSharedPreferences("tdl", Context.MODE_PRIVATE).getString("impvids", "[]"))
+            for (k in 0 until arr.length()) out.add(arr.getString(k))
+        } catch (e: Throwable) { Diag.swallow("Storage impLoad", e) }
+        return out
+    }
+
+    private fun impSave(l: List<String>) {
+        val arr = org.json.JSONArray()
+        for (x in l) arr.put(x)
+        getSharedPreferences("tdl", Context.MODE_PRIVATE).edit().putString("impvids", arr.toString()).apply()
+    }
+
+    private fun showImported() {
+        mode = 3
+        head.text = "الفيديوهات المستوردة"
+        list.removeAllViews()
+        list.addView(rowPill("استيراد فيديوهات من الجهاز", true) {
+            val i = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            i.addCategory(Intent.CATEGORY_OPENABLE)
+            i.type = "video/*"
+            i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            try { startActivityForResult(i, 77) } catch (e: Throwable) { Diag.swallow("Storage showImported", e) }
+        }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 0, 10))
+        val all = impLoad()
+        if (all.isEmpty()) list.addView(tv("لا توجد فيديوهات مستوردة", 13f, p.muted))
+        for (us in all) {
+            val u = Uri.parse(us)
+            var name = FileUtil.nameOf(this, u)
+            var size = 0L
+            try {
+                contentResolver.query(u, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { if (it.moveToFirst()) size = it.getLong(0) }
+            } catch (e: Throwable) { Diag.swallow("Storage showImported size", e) }
+            val c = card()
+            val n = tv(name, 14f, p.text, true)
+            n.layoutDirection = View.LAYOUT_DIRECTION_LTR
+            n.gravity = Gravity.START
+            c.addView(n)
+            if (size > 0) c.addView(tv(FileUtil.fmtSize(size), 12f, p.muted))
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.addView(rowPill("تشغيل", true) {
+                val pi = Intent(this, VideoPlayerActivity::class.java)
+                pi.putExtra(VideoPlayerActivity.X_SRC, us)
+                pi.putExtra(VideoPlayerActivity.X_URI, true)
+                try { startActivity(pi) } catch (e: Throwable) { Diag.swallow("Storage play imported", e) }
+            }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
+            row.addView(rowPill("إزالة", false) {
+                val l = impLoad()
+                l.remove(us)
+                impSave(l)
+                try { contentResolver.releasePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) { Diag.swallow("Storage release", e) }
+                showImported()
+            }, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 0, 6, 0))
+            c.addView(row, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f, 0, 8, 0, 0))
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 77 || resultCode != Activity.RESULT_OK || data == null) return
+        val uris = ArrayList<Uri>()
+        val cd = data.clipData
+        if (cd != null) { for (k in 0 until cd.itemCount) uris.add(cd.getItemAt(k).uri) }
+        else data.data?.let { uris.add(it) }
+        val l = impLoad()
+        for (u in uris) {
+            try { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) { Diag.swallow("Storage persist", e) }
+            if (!l.contains(u.toString())) l.add(u.toString())
+        }
+        impSave(l)
+        showImported()
+    }
+
     private fun openItem(item: Item) {
+        if (FileUtil.mimeOf(item.name).startsWith("video/")) {
+            val pi = Intent(this, VideoPlayerActivity::class.java)
+            pi.putExtra(VideoPlayerActivity.X_SRC, if (item.uri != null) item.uri.toString() else (item.file?.absolutePath ?: ""))
+            pi.putExtra(VideoPlayerActivity.X_URI, item.uri != null)
+            try { startActivity(pi) } catch (e: Throwable) { Diag.swallow("Storage openItem", e) }
+            return
+        }
         val u = item.uri ?: Uri.fromFile(item.file)
         val i = Intent(this, ViewerActivity::class.java)
         i.data = u
