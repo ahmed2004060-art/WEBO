@@ -67,6 +67,38 @@ internal fun MainActivity.editScript(idx: Int) {
     lay.addView(nameE)
     lay.addView(matchE)
     lay.addView(codeE)
+    lay.addView(dlPill("استيراد ملف JavaScript من الجهاز", false) {
+        jsImportCb = { u ->
+            var fname = ""
+            try {
+                contentResolver.query(u, null, null, null, null)?.use { c ->
+                    val ix = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (ix >= 0 && c.moveToFirst()) fname = c.getString(ix) ?: ""
+                }
+            } catch (e: Throwable) { Diag.swallow("UserScripts.kt importJs name", e) }
+            if (!(fname.endsWith(".js", true) || fname.endsWith(".mjs", true))) {
+                toast("ملف غير مدعوم، اختر ملف .js فقط")
+            } else {
+                try {
+                    val t = contentResolver.openInputStream(u)?.bufferedReader()?.use { it.readText() } ?: ""
+                    codeE.setText(t)
+                    toast("تم استيراد: " + fname)
+                } catch (e: Throwable) {
+                    Diag.swallow("UserScripts.kt importJs read", e)
+                    toast("تعذر قراءة الملف")
+                }
+            }
+        }
+        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT)
+        i.addCategory(android.content.Intent.CATEGORY_OPENABLE)
+        i.type = "*/*"
+        try {
+            startActivityForResult(i, 80)
+        } catch (e: Throwable) {
+            Diag.swallow("UserScripts.kt importJs picker", e)
+            toast("تعذر فتح منتقي الملفات")
+        }
+    }, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
     val sv = ScrollView(this)
     sv.addView(lay)
     val on = o.optBoolean("on", true)

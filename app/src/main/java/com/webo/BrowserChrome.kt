@@ -235,6 +235,36 @@ internal fun MainActivity.buildBrowser(): View {
     }
     barHome.contentDescription = "الرئيسية"
     bar.addView(barHome, lp(dp(38), dp(38)))
+    val urlHidden = ArrayList<View>()
+    val urlRestore = Runnable {
+        android.transition.TransitionManager.beginDelayedTransition(bar)
+        for (v in urlHidden) v.visibility = View.VISIBLE
+        urlHidden.clear()
+        val ulp = urlBox.layoutParams as LinearLayout.LayoutParams
+        ulp.leftMargin = dp(4)
+        ulp.rightMargin = dp(4)
+        urlBox.layoutParams = ulp
+    }
+    urlBox.addTextChangedListener(object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+        override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+        override fun afterTextChanged(s: android.text.Editable?) {
+            if (!urlBox.hasFocus()) return
+            urlBox.removeCallbacks(urlRestore)
+            if (urlHidden.isEmpty()) {
+                android.transition.TransitionManager.beginDelayedTransition(bar)
+                for (i in 0 until bar.childCount) {
+                    val v = bar.getChildAt(i)
+                    if (v !== urlBox && v.visibility == View.VISIBLE) { urlHidden.add(v); v.visibility = View.GONE }
+                }
+                val ulp = urlBox.layoutParams as LinearLayout.LayoutParams
+                ulp.leftMargin = 0
+                ulp.rightMargin = 0
+                urlBox.layoutParams = ulp
+            }
+            urlBox.postDelayed(urlRestore, 500)
+        }
+    })
     col.addView(bar, lp(MATCH, WRAP))
 
     // شريط تقدّم تحميل الصفحة

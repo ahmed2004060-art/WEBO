@@ -70,8 +70,7 @@ internal fun MainActivity.buildTools(): View {
 
     section(col, "السجل")
     grid(col, listOf(
-        toolCard(R.drawable.ic_undo, "المغلقة مؤخراً") { showClosed() },
-        toolCard(R.drawable.ic_list, "السجل") { copyTabs() }
+        toolCard(R.drawable.ic_undo, "السجل") { showClosed() }
     ))
 
     section(col, "التحميلات والملفات")
@@ -93,7 +92,6 @@ internal fun MainActivity.buildTools(): View {
     section(col, "التقاط الفيديو")
     grid(col, listOf(
         toolCard(R.drawable.ic_search_link, "فحص رابط") { inspectLink() },
-        toolCard(R.drawable.ic_history, "سجل الالتقاط") { showCapLog() },
         toolCard(R.drawable.ic_block, "الروابط المستبعدة") { excludedDialog() }
     ))
 

@@ -174,11 +174,11 @@ internal fun MainActivity.findPagePoster(c: Cand, owner: Tab?, h: Map<String, St
             }
             if (s.startsWith("http://") || s.startsWith("https://")) {
                 if (!c.rw.thumbSet) {
-                    c.rw.thumbRetry = { ui.postDelayed({ findPagePoster(c, owner, h, tries - 1) }, 3000) }
+                    c.rw.thumbRetry = { ui.postDelayed({ findPagePoster(c, owner, h, tries - 1) }, 1000) }
                     thumbFromUrl(c.rw, s, h)
                 }
             } else {
-                ui.postDelayed({ findPagePoster(c, owner, h, tries - 1) }, 3000)
+                ui.postDelayed({ findPagePoster(c, owner, h, tries - 1) }, 1000)
             }
         }
     } catch (e: Throwable) { Diag.swallow("Thumbnails.kt:173 findPagePoster", e);

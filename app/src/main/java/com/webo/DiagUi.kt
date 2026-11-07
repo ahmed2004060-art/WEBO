@@ -87,7 +87,6 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     chkCard.addView(chkSummary)
     val chkList = LinearLayout(this)
     chkList.orientation = LinearLayout.VERTICAL
-    chkCard.addView(chkList, lp(MATCH, WRAP, 0f, 0, 6, 0, 0))
 
     fun addResult(r: CheckResult) {
         val box = LinearLayout(this)
@@ -135,6 +134,9 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         if (!started) toast("الفحص يعمل الآن")
     }
     chkCard.addView(runBtn, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
+    val chkScroll = android.widget.ScrollView(this)
+    chkScroll.addView(chkList)
+    chkCard.addView(chkScroll, lp(MATCH, dp(260), 0f, 0, 8, 0, 0))
 
     // ---------- السجل ----------
     section(col, "السجل")
@@ -149,7 +151,9 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     col.addView(chips, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
     val listBox = LinearLayout(this)
     listBox.orientation = LinearLayout.VERTICAL
-    col.addView(listBox, lp(MATCH, WRAP))
+    val listScroll = android.widget.ScrollView(this)
+    listScroll.addView(listBox)
+    col.addView(listScroll, lp(MATCH, dp(260)))
     val moreBtn = dlPill("عرض المزيد", false) { }
     moreBtn.visibility = View.GONE
     col.addView(moreBtn, lp(MATCH, WRAP, 0f, 0, 6, 0, 0))
@@ -252,8 +256,7 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         copyText(sb.toString())
         if (cut) toast("نُسخ الأحدث فقط (حد الحافظة). للتقرير الكامل استخدم «مشاركة كملف»")
     }, lp(0, WRAP, 1f, 0, 0, 4, 0))
-    actions.addView(dlPill("مشاركة كملف", true) { shareDiagReport() }, lp(0, WRAP, 1f, 0, 0, 4, 0))
-    actions.addView(dlPill("حذف السجل", false) { }, lp(0, WRAP, 1f, 0, 0, 0, 0))
+    actions.addView(dlPill("مشاركة كملف", false) { shareDiagReport() }, lp(0, WRAP, 1f, 0, 0, 4, 0))
 
     refresh()
 }

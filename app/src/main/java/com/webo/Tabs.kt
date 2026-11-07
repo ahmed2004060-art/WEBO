@@ -227,16 +227,8 @@ internal fun MainActivity.snapshot(t: Tab) {
         } finally {
             p.recycle()
         }
-        for (x in ArrayList(closed)) if (x.url == url) {
-            stateFile(x.id).delete()
-            closed.remove(x)
-        }
         val title = (if (t.title.isNotBlank()) t.title else url).replace("\t", " ").replace("\n", " ")
         closed.add(0, Closed(id, title, url))
-        while (closed.size > 15) {
-            val x = closed.removeAt(closed.size - 1)
-            stateFile(x.id).delete()
-        }
         saveClosedPrefs()
     } catch (e: Throwable) { Diag.swallow("Tabs.kt:237 snapshot", e);
         logErr("كاش", "تعذر حفظ حالة الصفحة المغلقة", e)
@@ -266,22 +258,105 @@ internal fun MainActivity.reopen(c: Closed) {
     }
 }
 
+// وقت إغلاق الصفحة: «اليوم» أو «أمس» أو التاريخ، مع الساعة
+internal fun closedWhen(ms: Long): String {
+    if (ms <= 0L) return ""
+    val loc = java.util.Locale("ar")
+    val clock = java.text.SimpleDateFormat("h:mm a", loc).format(java.util.Date(ms))
+    fun dayStart(t: Long): Long {
+        val c = java.util.Calendar.getInstance()
+        c.timeInMillis = t
+        c.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        c.set(java.util.Calendar.MINUTE, 0)
+        c.set(java.util.Calendar.SECOND, 0)
+        c.set(java.util.Calendar.MILLISECOND, 0)
+        return c.timeInMillis
+    }
+    val days = Math.round((dayStart(System.currentTimeMillis()) - dayStart(ms)) / 86400000.0)
+    return when {
+        days <= 0L -> "اليوم - " + clock
+        days == 1L -> "أمس - " + clock
+        else -> java.text.SimpleDateFormat("d MMMM yyyy", loc).format(java.util.Date(ms)) + " - " + clock
+    }
+}
+
 internal fun MainActivity.showClosed() {
     if (closed.isEmpty()) {
         toast("لا توجد صفحات مغلقة محفوظة")
         return
     }
     val clHolder = arrayOfNulls<AlertDialog>(1)
-    val rows = closed.mapIndexed { i, cp ->
-        DlgStyle.siteRow(this, (if (cp.title.isNotBlank()) cp.title else cp.url).take(60), hostOf(cp.url), favOf(cp.url)) { clHolder[0]?.dismiss(); reopen(closed[i]) }
-    }
-    clHolder[0] = StyledBuilder(this)
-        .setTitle("الصفحات المغلقة مؤخراً")
-        .setView(DlgStyle.rowsList(this, rows))
-        .setNegativeButton("مسح الكل") { _, _ ->
-            for (x in closed) stateFile(x.id).delete()
-            closed.clear()
-            saveClosedPrefs()
+    val box = LinearLayout(this)
+    box.orientation = LinearLayout.VERTICAL
+    box.setPadding(dp(14), dp(2), dp(14), dp(4))
+    val search = android.widget.EditText(this)
+    search.setTextColor(cText)
+    search.setHintTextColor(cMuted)
+    search.hint = "ابحث في الصفحات المغلقة"
+    search.setSingleLine(true)
+    search.inputType = android.text.InputType.TYPE_CLASS_TEXT
+    search.background = bg(cBg, 12, cLine)
+    search.setPadding(dp(12), dp(8), dp(12), dp(8))
+    box.addView(search, lp(MATCH, WRAP, 0f, 0, 0, 0, 6))
+    val holder = FrameLayout(this)
+    box.addView(holder, lp(MATCH, WRAP))
+    fun refresh() {
+        val q = search.text.toString().trim().lowercase()
+        holder.removeAllViews()
+        val list = closed.filter { q.isEmpty() || it.title.lowercase().contains(q) || it.url.lowercase().contains(q) }
+        if (list.isEmpty()) {
+            val e = tv(if (closed.isEmpty()) "لا توجد صفحات مغلقة" else "لا توجد نتائج", 14f, cMuted)
+            e.gravity = Gravity.CENTER
+            e.setPadding(0, dp(28), 0, dp(28))
+            holder.addView(e, FrameLayout.LayoutParams(MATCH, WRAP))
+            return
         }
+        val rows = list.map { cp ->
+            val main = LinearLayout(this)
+            main.orientation = LinearLayout.VERTICAL
+            main.addView(DlgStyle.siteRow(this, (if (cp.title.isNotBlank()) cp.title else cp.url).take(60), hostOf(cp.url), favOf(cp.url)) { clHolder[0]?.dismiss(); reopen(cp) }, lp(MATCH, WRAP))
+            val tm = tv(closedWhen(cp.id.toLongOrNull() ?: 0L), 11.5f, cMuted)
+            tm.setPaddingRelative(dp(54), 0, dp(6), dp(8))
+            main.addView(tm, lp(MATCH, WRAP))
+            val x = ImageView(this)
+            x.setImageResource(R.drawable.ic_close)
+            x.setColorFilter(cMuted)
+            x.setPadding(dp(9), dp(9), dp(9), dp(9))
+            x.setOnClickListener {
+                stateFile(cp.id).delete()
+                closed.remove(cp)
+                saveClosedPrefs()
+                refresh()
+            }
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.addView(main, lp(0, WRAP, 1f))
+            row.addView(x, lp(dp(36), dp(36)))
+            row as View
+        }
+        holder.addView(DlgStyle.rowsList(this, rows))
+    }
+    search.addTextChangedListener(object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+        override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) { refresh() }
+        override fun afterTextChanged(s: android.text.Editable?) {}
+    })
+    refresh()
+    clHolder[0] = StyledBuilder(this)
+        .setTitle("السجل")
+        .setView(box)
+        .setNeutralButton("مسح الكل") { _, _ ->
+            StyledBuilder(this).setTitle("مسح الكل")
+                .setMessage("سيتم حذف كل الصفحات المغلقة نهائياً. لا يمكن التراجع.")
+                .setPositiveButton("مسح") { _, _ ->
+                    for (x in closed) stateFile(x.id).delete()
+                    closed.clear()
+                    saveClosedPrefs()
+                }
+                .setNegativeButton("إلغاء", null)
+                .show()
+        }
+        .setNegativeButton("إغلاق", null)
         .show()
 }

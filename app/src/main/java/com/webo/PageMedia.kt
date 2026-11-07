@@ -169,6 +169,7 @@ internal fun MainActivity.collectMerge(t: Tab, key: String) {
                 for (g in cap) if (seen.add(g.u)) m.add(g)
                 t.capImgs = m
             }
+            t.capImgs?.let { imgLive?.invoke(it) }
         }
     }
 }
@@ -206,7 +207,8 @@ internal fun MainActivity.collectImages(t: Tab, done: (List<GImg>?) -> Unit) {
     }
 }
 
-internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
+internal fun MainActivity.openImagesDialog(all0: List<GImg>, page: String) {
+    val all = ArrayList<GImg>(all0)
     val dlg = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
     val root = LinearLayout(this)
     root.orientation = LinearLayout.VERTICAL
@@ -246,11 +248,20 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
         }
     }
     val (cntW, cntB, cntN) = badgeBtn("عداد التقاط الصور", true)
+    cntB.maxLines = 1
+    cntB.ellipsize = TextUtils.TruncateAt.END
+    cntW.setPadding(dp(10), 0, dp(10), 0)
+    // النص وحده يضيق (بثلاث نقاط) ويبقى الرقم بمقاسه؛ ولا يتمدد النص فيبقى الاثنان متلاصقين في الوسط
+    cntW.addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ ->
+        val reserve = if (cntN.visibility == View.VISIBLE) cntN.width + dp(6) else 0
+        val avail = ((r - l) - cntW.paddingLeft - cntW.paddingRight - reserve).coerceAtLeast(dp(20))
+        if (cntB.maxWidth != avail) cntW.post { cntB.maxWidth = avail }
+    }
     val dlsB = pill("التحميلات", false) { }.also { it.height = dp(46) }
     val closeB = pill("إغلاق", false) { dlg.dismiss() }.also { it.height = dp(46) }
     val nav = LinearLayout(this)
     nav.orientation = LinearLayout.HORIZONTAL
-    nav.addView(cntW, lp(0, WRAP, 1f, 0, 0, 6, 0))
+    nav.addView(cntW, lp(0, WRAP, 1.6f, 0, 0, 6, 0))
     nav.addView(dlsB, lp(0, WRAP, 1f, 0, 0, 6, 0))
     nav.addView(closeB, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     root.addView(nav, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
@@ -312,8 +323,7 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
             else ""
         title.visibility = if (title.text.isEmpty()) View.GONE else View.VISIBLE
         cntB.text = "عداد التقاط الصور"
-        if (vis.size > lastCnt) cntSeen = (shown == 0)
-        if (shown == 0) cntSeen = true
+        if (vis.size > lastCnt) cntSeen = false
         lastCnt = vis.size
         blinkNum(cntN, cntSeen, vis.size)
         val smallN = cap.count { isSmall(it) }
@@ -425,6 +435,11 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
             for (k in i until minOf(i + 3, vis.size)) {
                 val g = vis[k]
                 val c = g.cell ?: makeCell(g)
+                c.setOnClickListener {
+                    g.sel = !g.sel
+                    paint(g)
+                    updateTitle()
+                }
                 rowL.addView(c, lp(side, side, 0f, 0, 0, 4, 4))
             }
             grid.addView(rowL, lp(MATCH, WRAP))
@@ -496,7 +511,7 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
         g.chip?.setTextColor(if (st == 2) Color.parseColor("#3DB36B") else Color.parseColor("#E05A5A"))
     }
 
-    cntW.setOnClickListener { showView(0) }
+    cntW.setOnClickListener { cntSeen = true; showView(0) }
     dlsB.setOnClickListener { showView(1) }
 
     sv.viewTreeObserver.addOnScrollChangedListener { loadVisible() }
@@ -551,6 +566,23 @@ internal fun MainActivity.openImagesDialog(all: List<GImg>, page: String) {
         }
     }
 
+    imgLive = { fresh ->
+        val have = HashSet<String>()
+        for (g in all) have.add(g.u)
+        var added = false
+        for (g in fresh) if (have.add(g.u)) { all.add(g); added = true }
+        if (added) {
+            val y = sv.scrollY
+            refresh()
+            sv.post { sv.scrollTo(0, y) }
+        }
+    }
+    dlg.setOnDismissListener { imgLive = null }
+    // إعادة فتح النافذة: تعود صور التحميلات السابقة إلى صفحة التحميلات بحالتها
+    for (g in all) if (g.started) {
+        addRow(g)
+        if (g.state == 2 || g.state == 3) finishImg(g, g.state)
+    }
     refresh()
     showView(0)
     dlg.setContentView(root)

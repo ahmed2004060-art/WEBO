@@ -236,7 +236,7 @@ internal fun MainActivity.switchRow(parent: LinearLayout, title: String, sub: St
         prefs().edit().putBoolean(key, on).apply()
         onChange(on)
     }
-    row.addView(txt, lp(0, WRAP, 1f))
+    row.addView(txt, lp(0, WRAP, 1f, 12, 0, 0, 0))
     row.addView(sw)
     parent.addView(row, lp(MATCH, WRAP))
 }

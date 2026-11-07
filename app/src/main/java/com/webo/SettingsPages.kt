@@ -141,7 +141,7 @@ internal fun MainActivity.buildSetBrowse(col: LinearLayout) {
     paintE()
     eRow.addView(eg, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     eRow.addView(ed, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
-    eRow.addView(eb)
+    eRow.addView(eb, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     eBox.addView(eRow, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
     c0.addView(eBox, lp(MATCH, WRAP))
 
@@ -225,9 +225,9 @@ internal fun MainActivity.buildSetNet(col: LinearLayout) {
     thrTxt.addView(tv("عدد الأجزاء المتوازية", 15f, cText, true))
     thrTxt.addView(tv("عدد اتصالات التحميل المتوازية للملف الواحد (1 - 32)", 12f, cMuted))
     thrRow.addView(thrTxt, lp(0, WRAP, 1f))
-    thrRow.addView(pill("+", false) { setThr(prefs().getInt("threads", 8) + 1) })
-    thrRow.addView(cnt)
-    thrRow.addView(pill("−", false) { setThr(prefs().getInt("threads", 8) - 1) })
+    thrRow.addView(pill("+", false) { setThr(prefs().getInt("threads", 8) + 1) }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+    thrRow.addView(cnt, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
+    thrRow.addView(pill("−", false) { setThr(prefs().getInt("threads", 8) - 1) }, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     g3.addView(thrRow, lp(MATCH, WRAP))
     val qRow = LinearLayout(this)
     qRow.orientation = LinearLayout.HORIZONTAL
@@ -249,7 +249,7 @@ internal fun MainActivity.buildSetNet(col: LinearLayout) {
     paintQ()
     qRow.addView(qTxt, lp(0, WRAP, 1f))
     qRow.addView(hi, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
-    qRow.addView(lo)
+    qRow.addView(lo, lp(WRAP, WRAP, 0f, 0, 0, 6, 0))
     g3.addView(qRow, lp(MATCH, WRAP))
     actionRow(g3, "التحكم بالسرعة", "حد السرعة الحر وعدد الاتصالات وعدد التحميلات المتزامنة (بلا قيود)", "ضبط") { showSpeed() }
     actionRow(g3, "قياس سرعة الشبكة", "يقيس سرعتك الفعلية ويقترح أفضل عدد اتصالات", "قياس") { speedTest() }

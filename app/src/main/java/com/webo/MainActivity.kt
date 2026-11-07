@@ -81,6 +81,7 @@ class MainActivity : Activity() {
     internal var cur: Tab? = null
     internal var page = 0
     internal var fileCb: ValueCallback<Array<Uri>>? = null
+    internal var jsImportCb: ((Uri) -> Unit)? = null
     internal var geoCb: GeolocationPermissions.Callback? = null
     internal var geoOrigin = ""
     internal var permReq: PermissionRequest? = null
@@ -424,6 +425,7 @@ class MainActivity : Activity() {
 
     internal lateinit var settingsHost: FrameLayout
     internal var setSub = ""
+    internal var imgLive: ((List<GImg>) -> Unit)? = null
 
     internal val favTried = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
@@ -634,6 +636,13 @@ class MainActivity : Activity() {
                 try { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) { Diag.swallow("MainActivity.kt:625 MainActivity.onActivityResult", e);}
                 openViewer(u)
             }
+            return
+        }
+        if (req == 80) {
+            val cb = jsImportCb
+            jsImportCb = null
+            val u = data?.data
+            if (res == RESULT_OK && u != null) cb?.invoke(u)
             return
         }
         super.onActivityResult(req, res, data)

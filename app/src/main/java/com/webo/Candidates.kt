@@ -230,9 +230,6 @@ internal fun MainActivity.enrich(c: Cand, h: Map<String, String>) {
 // يقرر هل الرابط فيديو حقيقي: يقرأ قائمة m3u8 (مسجل أم مباشر + المدة + الجودة + الحجم التقديري)، ويتحقق من نوع الملفات المباشرة
 internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView?, srcLabel: String = "غير محدد") {
     val t = if (v != null) hasTab(v) else cur
-    // الالتقاط يعمل فقط على الصفحة التي أقف فيها فعلياً
-    if (t == null || t !== cur) return
-    val pageKey = t.lastUrl
     val key = tabKey(t) + u
     if (!showKnownSeg() && segUrls.contains(u)) { capNote("أُهمل", u, "جزء من قائمة بث معروفة (يمكنك إظهاره من الإعدادات: إظهار أجزاء القوائم)"); return }
     if (!considered.add(key)) return
@@ -259,7 +256,7 @@ internal fun MainActivity.consider(u: String, h: Map<String, String>, v: WebView
             if (ok && !showKnownSeg() && segUrls.contains(u)) { ok = false; capNote("أُهمل", u, "جزء من بث (segment)") }
             if (ok) capNote("قُبل", u, if (m == null) "قُبل بلا معلومات" else (if (m.vod) "فيديو مسجل" else "بث مباشر") + " (" + m.why + "، ثقة " + m.conf + "%)" + (if (m.dur > 0) " • " + fmtDur(m.dur) else "") + (if (m.res.isNotEmpty()) " • " + m.res else ""))
             if (ok) ui.post {
-                if (t === cur && tabs.contains(t) && t.lastUrl == pageKey) {
+                if (t == null || tabs.contains(t)) {
                     addFound(u, h, m, t, t?.title ?: "")
                     val c = cands[u]
                     if (c != null && c.meta != null && !isHls(u) && !isDash(u)) enrich(c, h)
