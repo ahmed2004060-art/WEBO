@@ -209,7 +209,7 @@ internal fun MainActivity.collectImages(t: Tab, done: (List<GImg>?) -> Unit) {
 
 internal fun MainActivity.openImagesDialog(all0: List<GImg>, page: String) {
     val all = ArrayList<GImg>(all0)
-    val dlg = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+    val dlg = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar)
     val root = LinearLayout(this)
     root.orientation = LinearLayout.VERTICAL
     root.setBackgroundColor(cBg)

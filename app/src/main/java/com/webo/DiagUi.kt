@@ -18,6 +18,15 @@ private const val DIAG_PAGE = 100
 private const val DIAG_LOAD_MAX = 5000
 private const val DIAG_COPY_MAX = 200000
 
+// شاشة تمرير داخلية: تمنع الصفحة الخارجية من سحب اللمس من أي نقطة، وتمنع التمرير التلقائي إلى النص المركَّز
+private class DiagInnerScroll(ctx: android.content.Context) : android.widget.ScrollView(ctx) {
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) parent?.requestDisallowInterceptTouchEvent(true)
+        return super.dispatchTouchEvent(ev)
+    }
+    override fun computeScrollDeltaToGetChildRectOnScreen(rect: android.graphics.Rect?): Int = 0
+}
+
 private fun diagIsError(kind: String): Boolean =
     kind == "انهيار" || kind == "مبتلع" || kind == "جافاسكربت-مبتلع" || kind.startsWith("جافاسكربت") || kind == "ANR" || kind == "فشل"
 
@@ -134,9 +143,8 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
         if (!started) toast("الفحص يعمل الآن")
     }
     chkCard.addView(runBtn, lp(MATCH, WRAP, 0f, 0, 8, 0, 0))
-    val chkScroll = android.widget.ScrollView(this)
+    val chkScroll = DiagInnerScroll(this)
     chkScroll.addView(chkList)
-    chkScroll.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
     chkCard.addView(chkScroll, lp(MATCH, dp(260), 0f, 0, 8, 0, 0))
 
     // ---------- السجل ----------
@@ -152,9 +160,8 @@ internal fun MainActivity.buildSetDiag(col: LinearLayout) {
     col.addView(chips, lp(MATCH, WRAP, 0f, 0, 0, 0, 8))
     val listBox = LinearLayout(this)
     listBox.orientation = LinearLayout.VERTICAL
-    val listScroll = android.widget.ScrollView(this)
+    val listScroll = DiagInnerScroll(this)
     listScroll.addView(listBox)
-    listScroll.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
     col.addView(listScroll, lp(MATCH, dp(260)))
     val moreBtn = dlPill("عرض المزيد", false) { }
     moreBtn.visibility = View.GONE
